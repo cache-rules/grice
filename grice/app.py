@@ -31,22 +31,24 @@ class App:
         _print_start_screen()
         config = configparser.ConfigParser()
         config.read(config_path)
-
-        self.host = config['server'].get('host', '0.0.0.0')
-        self.port = config['server'].getint('port', 8080)
-        self.threads = config['server'].getint('threads', 8)
-        self.debug = config['server'].getboolean('debug', False)
+        self._init_flask_app(config['server'])
+        self._db_service = DBService(config['database'])
+        self._db_controller = DBController(self.flask_app, self._db_service)
+        
+    def _init_flask_app(self, server_config):
+        self.host = server_config.get('host', '0.0.0.0')
+        self.port = server_config.getint('port', 8080)
+        self.threads = server_config.getint('threads', 8)
+        self.debug = server_config.getboolean('debug', False)
 
         try:
-            self.secret = config['server']['secret']
+            self.secret = server_config['secret']
         except KeyError:
             raise ConfigurationError('Entry "secret" required in section "server"')
 
         self.flask_app = Flask('grice', '/assets/', './assets')
         self.flask_app.debug = self.debug
         self.flask_app.secret_key = self.secret
-        self._db_service = DBService(config['database'])
-        self._db_controller = DBController(self.flask_app, self._db_service)
 
     def serve(self):
         self.flask_app.logger.info('Starting server...')
