@@ -1,4 +1,4 @@
-from grice.errors import ConfigurationError
+from grice.errors import ConfigurationError, NotFoundError
 from sqlalchemy import create_engine, MetaData, Column, Table, select
 from sqlalchemy import engine
 from sqlalchemy.engine import reflection
@@ -14,8 +14,7 @@ def init_database(db_config):
             'database': db_config['database']
         }
     except KeyError:
-        msg = 'Config entries "username", "password", "host", "port", and "database" are'
-        msg += ' required to initialize the database module.'
+        msg = '"username", "password", "host", "port", and "database" are required fields of database config'
         raise ConfigurationError(msg)
 
     eng_url = engine.url.URL('postgresql', **db_args)
@@ -84,7 +83,7 @@ class DBService:
         table = self.meta.tables.get(table_name, None)
 
         if table is None:
-            return None
+            raise NotFoundError('table "{}" does exist'.format(table_name))
 
         return table_to_dict(table)
 

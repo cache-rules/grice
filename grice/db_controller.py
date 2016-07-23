@@ -1,6 +1,8 @@
 from grice.db_service import DBService
 from flask import Flask, jsonify
 
+from grice.errors import NotFoundError
+
 
 class DBController:
     def __init__(self, app: Flask, db_service: DBService):
@@ -14,14 +16,21 @@ class DBController:
     tables_page.methods = ['GET']
 
     def table_page(self, name):
-        table_info = self.db_service.get_table(name)
+        try:
+            table_info = self.db_service.get_table(name)
+        except NotFoundError as e:
+            return jsonify(success=False, error=str(e)), 404
 
         return jsonify(**table_info)
 
     table_page.methods = ['GET', 'POST']
 
     def data_page(self, name):
-        table_info = self.db_service.get_table(name)
+        try:
+            table_info = self.db_service.get_table(name)
+        except NotFoundError as e:
+            return jsonify(success=False, error=str(e)), 404
+
         table_info['rows'] = self.db_service.query_table(name)
 
         return jsonify(**table_info)
