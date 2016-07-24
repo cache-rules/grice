@@ -2,6 +2,7 @@ import configparser
 
 from grice.db_controller import DBController
 from grice.db_service import DBService
+from grice.decimal_encoder import DecimalEncoder
 from grice.errors import ConfigurationError
 from flask import Flask, send_from_directory, render_template
 from waitress import serve
@@ -59,6 +60,7 @@ class App:
         self.flask_app = Flask('grice')
         self.flask_app.debug = self.debug
         self.flask_app.secret_key = self.secret
+        self.flask_app.json_encoder = DecimalEncoder
         self.flask_app.add_url_rule('/', 'index', index)
         self.flask_app.add_url_rule('/assets/<path:path>', 'assets', static_assets)
 
