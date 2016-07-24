@@ -10,12 +10,12 @@ class DBController:
         self.db_service = db_service
         self.register_routes()
 
-    def tables_page(self):
+    def tables_api(self):
         return jsonify(schemas=self.db_service.get_tables())
 
-    tables_page.methods = ['GET']
+    tables_api.methods = ['GET']
 
-    def table_page(self, name):
+    def table_api(self, name):
         try:
             table_info = self.db_service.get_table(name)
         except NotFoundError as e:
@@ -23,9 +23,9 @@ class DBController:
 
         return jsonify(**table_info)
 
-    table_page.methods = ['GET', 'POST']
+    table_api.methods = ['GET', 'POST']
 
-    def data_page(self, name):
+    def query_api(self, name):
         try:
             table_info = self.db_service.get_table(name)
         except NotFoundError as e:
@@ -35,10 +35,10 @@ class DBController:
 
         return jsonify(**table_info)
 
-    data_page.methods = ['GET']
+    query_api.methods = ['GET']
 
     def register_routes(self):
-        self.app.add_url_rule('/api/db', 'index', self.tables_page)
-        self.app.add_url_rule('/api/db/tables', 'tables', self.tables_page)
-        self.app.add_url_rule('/api/db/tables/<name>', 'table', self.table_page)
-        self.app.add_url_rule('/api/db/tables/<name>/data', 'data', self.data_page)
+        # API Routes
+        self.app.add_url_rule('/api/db/tables', 'tables_api', self.tables_api)
+        self.app.add_url_rule('/api/db/tables/<name>', 'table_api', self.table_api)
+        self.app.add_url_rule('/api/db/tables/<name>/query', 'query_api', self.query_api)
