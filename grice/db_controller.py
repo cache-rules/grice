@@ -12,16 +12,19 @@ def parse_query_args(query_args):
     except ValueError:
         page = DEFAULT_PAGE
 
-    try:
-        per_page = int(query_args.get('perPage', 50))
-    except ValueError:
+    per_page = query_args.get('perPage', None)
+
+    if per_page is not None:
+        try:
+            per_page = int(per_page)
+        except ValueError:
+            per_page = None
+
+    if per_page is None:
         per_page = DEFAULT_PER_PAGE
 
     if page < 0:
         page = DEFAULT_PAGE
-
-    if per_page < 0:
-        per_page = DEFAULT_PER_PAGE
 
     if column_names:
         column_names = set([column_name.strip() for column_name in column_names.split(',')])

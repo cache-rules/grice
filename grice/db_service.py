@@ -119,8 +119,13 @@ class DBService:
         else:
             columns = names_to_columns(column_names, table.columns)
 
+        query = select(columns)
+
+        if per_page > -1:
+            query = query.limit(per_page).offset(page * per_page)
+
         with self.db.connect() as conn:
-            result = conn.execute(select(columns).limit(per_page).offset(page * per_page))
+            result = conn.execute(query)
 
             for row in result:
                 rows.append(dict(row))
