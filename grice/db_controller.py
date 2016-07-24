@@ -1,7 +1,32 @@
-from grice.db_service import DBService
-from flask import Flask, jsonify, render_template
+from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE
+from flask import Flask, jsonify, render_template, request
 
 from grice.errors import NotFoundError
+
+
+def parse_query_args(query_args):
+    column_names = query_args.get('cols', None)
+
+    try:
+        page = int(query_args.get('page', 1)) - 1
+    except ValueError:
+        page = DEFAULT_PAGE
+
+    try:
+        per_page = int(query_args.get('perPage', 50))
+    except ValueError:
+        per_page = DEFAULT_PER_PAGE
+
+    if page < 0:
+        page = DEFAULT_PAGE
+
+    if per_page < 0:
+        per_page = DEFAULT_PER_PAGE
+
+    if column_names:
+        column_names = set([column_name.strip() for column_name in column_names.split(',')])
+
+    return column_names, page, per_page
 
 
 class DBController:
@@ -26,12 +51,14 @@ class DBController:
     table_api.methods = ['GET', 'POST']
 
     def query_api(self, name):
+        column_names, page, per_page = parse_query_args(request.args)
+
         try:
-            table_info = self.db_service.get_table(name)
+            table_info = self.db_service.get_table(name, column_names)
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        table_info['rows'] = self.db_service.query_table(name)
+        table_info['rows'] = self.db_service.query_table(name, column_names, page, per_page)
 
         return jsonify(**table_info)
 
@@ -45,12 +72,14 @@ class DBController:
     tables_page.methods = ['GET']
 
     def table_page(self, name):
+        column_names, page, per_page = parse_query_args(request.args)
+
         try:
-            table = self.db_service.get_table(name)
+            table = self.db_service.get_table(name, column_names)
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        rows = self.db_service.query_table(name)
+        rows = self.db_service.query_table(name, column_names, page, per_page)
         title = "{} - Grice".format(name)
 
         return render_template('table.html', title=title, table=table, rows=rows)
