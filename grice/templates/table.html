@@ -1,0 +1,11 @@
+{% extends "layout.html" %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="/assets/src/js/components/table_component.js"></script>
+    <script>
+        grice._table = {{ table|tojson }};
+        grice._rows = {{ rows|tojson }};
+        m.mount(document.querySelector('.gza'), grice.TableComponent);
+    </script>
+{% endblock %}
