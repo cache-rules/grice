@@ -117,7 +117,7 @@ class ColumnFilter:
                 if self.filter_type in LIST_FILTERS:
                     values = []
 
-                    for value in self.url_value.split(','):
+                    for value in self.url_value.split(';'):
                         values.append(convert_url_value(value, column))
 
                     self.value = values
