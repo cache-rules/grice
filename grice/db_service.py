@@ -45,11 +45,7 @@ def table_to_dict(table: Table, column_names: set=None):
     columns = table.columns
 
     if column_names:
-        columns = []
-
-        for column in table.columns:
-            if column.name in column_names:
-                columns.append(column)
+        columns = names_to_columns(column_names, table.columns)
 
     return {
         'name': table.name,
@@ -59,11 +55,12 @@ def table_to_dict(table: Table, column_names: set=None):
 
 
 def names_to_columns(column_names, table_columns):
-    column_names = column_names
     columns = []
 
-    for column in table_columns:
-        if column.name in column_names:
+    for column_name in column_names:
+        column = table_columns.get(column_name)
+
+        if column is not None:
             columns.append(column)
 
     return columns
@@ -72,8 +69,6 @@ def names_to_columns(column_names, table_columns):
 class DBService:
     """
     TODO:
-        - Add methods for listing schemas
-        - Add methods for querying tables
         - Add methods for saving table queries
     """
     def __init__(self, db_config):
