@@ -119,6 +119,9 @@ class DBService:
         else:
             columns = names_to_columns(column_names, table.columns)
 
+        if len(columns) == 0:
+            return []
+
         query = select(columns)
 
         if per_page > -1:
