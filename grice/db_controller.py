@@ -1,10 +1,56 @@
-from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE
+from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter
 from flask import Flask, jsonify, render_template, request
 
 from grice.errors import NotFoundError
 
 
+def parse_filter(filter_string: str):
+    try:
+        column_name, filter_type, url_value = filter_string.split(',')
+    except ValueError:
+        return None
+
+    return ColumnFilter(column_name, filter_type, url_value=url_value)
+
+
+def parse_filters(filter_list):
+    """
+    This method parses the filter strings from the URL.
+
+    :param filter_list: List of filter strings from the URL.
+    :return: dict of column_name -> ColumnFilter
+    """
+    filters = {}
+
+    for filter_string in filter_list:
+        try:
+            column_filter = parse_filter(filter_string)
+        except ValueError:
+            # This means that the filter is not an acceptable filter type, so we'll ignore it.
+            continue
+
+        if column_filter is not None:
+            column_name = column_filter.column_name
+
+            if column_name not in filters:
+                filters[column_filter.column_name] = []
+
+            filters[column_name].append(column_filter)
+
+    if len(filters):
+        return filters
+
+    return None
+
+
 def parse_query_args(query_args):
+    """
+    This method takes the query string from the request and returns all of the items related to the query API.
+
+    :param query_args: The query args from flask.request.args
+    :return: column_names: list, page: int, per_page: int, filters: dict
+    """
+    filters = parse_filters(query_args.getlist('filter'))
     column_names = query_args.get('cols', None)
 
     try:
@@ -29,7 +75,7 @@ def parse_query_args(query_args):
     if column_names:
         column_names = set([column_name.strip() for column_name in column_names.split(',')])
 
-    return column_names, page, per_page
+    return column_names, page, per_page, filters
 
 
 class DBController:
@@ -54,14 +100,14 @@ class DBController:
     table_api.methods = ['GET', 'POST']
 
     def query_api(self, name):
-        column_names, page, per_page = parse_query_args(request.args)
+        column_names, page, per_page, filters = parse_query_args(request.args)
 
         try:
             table_info = self.db_service.get_table(name, column_names)
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        table_info['rows'] = self.db_service.query_table(name, column_names, page, per_page)
+        table_info['rows'] = self.db_service.query_table(name, column_names, page, per_page, filters)
 
         return jsonify(**table_info)
 
@@ -75,14 +121,14 @@ class DBController:
     tables_page.methods = ['GET']
 
     def table_page(self, name):
-        column_names, page, per_page = parse_query_args(request.args)
+        column_names, page, per_page, filters = parse_query_args(request.args)
 
         try:
             table = self.db_service.get_table(name, column_names)
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        rows = self.db_service.query_table(name, column_names, page, per_page)
+        rows = self.db_service.query_table(name, column_names, page, per_page, filters)
         title = "{} - Grice".format(name)
 
         return render_template('table.html', title=title, table=table, rows=rows)
