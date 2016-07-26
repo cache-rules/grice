@@ -1,5 +1,7 @@
+from collections import namedtuple
+
 from grice.errors import ConfigurationError, NotFoundError
-from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_
+from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_, asc, desc
 from sqlalchemy import engine
 from sqlalchemy.engine import reflection
 
@@ -7,6 +9,7 @@ DEFAULT_PAGE = 0
 DEFAULT_PER_PAGE = 50
 FILTER_TYPES = ['lt', 'lte', 'eq', 'neq', 'gt', 'gte', 'in', 'not_in', 'bt', 'nbt']
 LIST_FILTERS = ['in', 'not_in', 'bt', 'nbt']
+SORT_DIRECTIONS = ['asc', 'desc']
 
 
 def init_database(db_config):
@@ -225,6 +228,21 @@ def apply_column_filters(table: Table, query, filters: dict):
     return query
 
 
+ColumnSort = namedtuple('ColumnSort', ['column_name', 'direction'])
+
+
+def apply_column_sorts(table: Table, query, sorts: dict):
+    for sort in sorts:
+        if sort.column_name in table.columns:
+            if sort.direction == 'asc':
+                query = query.order_by(asc(table.columns.get(sort.column_name)))
+
+            if sort.direction == 'desc':
+                query = query.order_by(desc(table.columns.get(sort.column_name)))
+
+    return query
+
+
 class DBService:
     """
     TODO:
@@ -265,7 +283,7 @@ class DBService:
         return table_to_dict(table, column_names)
 
     def query_table(self, table_name, column_names: set=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
-                    filters: dict=None):
+                    filters: dict=None, sorts: dict=None):
         table = self.meta.tables.get(table_name, None)
         rows = []
 
@@ -285,6 +303,9 @@ class DBService:
         if filters is not None:
             query = apply_column_filters(table, query, filters)
 
+        if sorts is not None:
+            query = apply_column_sorts(table, query, sorts)
+
         with self.db.connect() as conn:
             result = conn.execute(query)
 
@@ -298,5 +319,7 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read('../config.ini')
     s = DBService(config['database'])
-    r = s.query_table('device_args', ['name', 'device_id'])
-    print(r)
+    t = s.meta.tables.get('countrylanguage')
+    cols = t.columns
+    print(cols)
+    # r = s.query_table('device_args', {'name', 'device_id'})

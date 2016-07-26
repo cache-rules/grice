@@ -1,4 +1,4 @@
-from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter
+from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter, ColumnSort, SORT_DIRECTIONS
 from flask import Flask, jsonify, render_template, request
 
 from grice.errors import NotFoundError
@@ -51,6 +51,53 @@ def parse_filters(filter_list):
     return None
 
 
+def parse_sort(sort_string):
+    """
+    Parses a sort from the URL.
+
+    expected format: column_name,direction where direction is 'asc' or 'desc'
+
+    :param sort_string: string
+    :return:
+    """
+    column_name, direction = [s.strip() for s in sort_string.split(',')]
+    direction = direction.lower()
+
+    if column_name == '':
+        raise ValueError('column_name cannot be blank')
+
+    if direction.lower() not in SORT_DIRECTIONS:
+        raise ValueError('invalid sort direction')
+
+    return ColumnSort(column_name, direction)
+
+
+def parse_sorts(sort_list):
+    """
+    This method parses sort strings from the URL.
+
+    :param sort_list:
+    :return:
+    """
+
+    # It only makes sense to have one sort per column, so we stash sorts in a dict. If multiple sorts exist for a
+    # column, then we only keep the last sort for that column.
+    sorts = {}
+
+    for sort_string in sort_list:
+        try:
+            column_sort = parse_sort(sort_string)
+        except ValueError:
+            continue
+
+        sorts[column_sort.column_name] = column_sort
+
+    if len(sorts):
+        return sorts.values()
+
+    return None
+
+
 def parse_query_args(query_args):
     """
     This method takes the query string from the request and returns all of the items related to the query API.
@@ -59,6 +106,7 @@ def parse_query_args(query_args):
     :return: column_names: list, page: int, per_page: int, filters: dict
     """
     filters = parse_filters(query_args.getlist('filter'))
+    sorts = parse_sorts(query_args.getlist('sort'))
     column_names = query_args.get('cols', None)
 
     try:
@@ -83,7 +131,7 @@ def parse_query_args(query_args):
     if column_names:
         column_names = set([column_name.strip() for column_name in column_names.split(',')])
 
-    return column_names, page, per_page, filters
+    return column_names, page, per_page, filters, sorts
 
 
 class DBController:
@@ -108,14 +156,14 @@ class DBController:
     table_api.methods = ['GET', 'POST']
 
     def query_api(self, name):
-        column_names, page, per_page, filters = parse_query_args(request.args)
+        column_names, page, per_page, filters, sorts = parse_query_args(request.args)
 
         try:
             table_info = self.db_service.get_table(name, column_names)
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        table_info['rows'] = self.db_service.query_table(name, column_names, page, per_page, filters)
+        table_info['rows'] = self.db_service.query_table(name, column_names, page, per_page, filters, sorts)
 
         return jsonify(**table_info)
 
@@ -129,14 +177,14 @@ class DBController:
     tables_page.methods = ['GET']
 
     def table_page(self, name):
-        column_names, page, per_page, filters = parse_query_args(request.args)
+        column_names, page, per_page, filters, sorts = parse_query_args(request.args)
 
         try:
             table = self.db_service.get_table(name, column_names)
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        rows = self.db_service.query_table(name, column_names, page, per_page, filters)
+        rows = self.db_service.query_table(name, column_names, page, per_page, filters, sorts)
         title = "{} - Grice".format(name)
 
         return render_template('table.html', title=title, table=table, rows=rows)
