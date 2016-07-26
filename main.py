@@ -8,7 +8,7 @@ def main():
     TODO: parse args here
     :return:
     """
-    parser = argparse.ArgumentParser(description='Email Hunter CLI')
+    parser = argparse.ArgumentParser(description='Grice')
     parser.add_argument('--config', help='The path to the config file', default='./config.ini')
     args = parser.parse_args()
     app = App(args.config)
