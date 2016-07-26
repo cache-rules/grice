@@ -5,17 +5,24 @@ from grice.errors import NotFoundError
 
 
 def parse_filter(filter_string: str):
-    try:
-        column_name, filter_type, url_value = filter_string.split(',')
-    except ValueError:
-        return None
+    """
+    Parses a filter string from the URL.
+
+    expected format:
+        column_name,filter_type,value for single value filters i.e. eq, lt, gt.
+        column_name,filter_type,values;delimited;with;semicolons for multi-value filters i.e. in, not_in, between.
+
+    :param filter_string: the filter string from the URL.
+    :return: ColumnFilter
+    """
+    column_name, filter_type, url_value = [s.strip() for s in filter_string.split(',')]
 
     return ColumnFilter(column_name, filter_type, url_value=url_value)
 
 
 def parse_filters(filter_list):
     """
-    This method parses the filter strings from the URL.
+    Parses the filter strings from the URL.
 
     :param filter_list: List of filter strings from the URL.
     :return: dict of column_name -> ColumnFilter
@@ -26,14 +33,15 @@ def parse_filters(filter_list):
         try:
             column_filter = parse_filter(filter_string)
         except ValueError:
-            # This means that the filter is not an acceptable filter type, so we'll ignore it.
+            # This means that the filter is not an acceptable filter type, so we'll ignore it. We should consider
+            # notifying the user that their filter was wrong.
             continue
 
         if column_filter is not None:
             column_name = column_filter.column_name
 
             if column_name not in filters:
-                filters[column_filter.column_name] = []
+                filters[column_name] = []
 
             filters[column_name].append(column_filter)
 
