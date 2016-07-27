@@ -1,7 +1,9 @@
 from collections import namedtuple
 
+from sqlalchemy.sql import Select
+
 from grice.errors import ConfigurationError, NotFoundError
-from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_, asc, desc
+from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_, asc, desc, and_
 from sqlalchemy import engine
 from sqlalchemy.engine import reflection
 
@@ -37,33 +39,41 @@ def column_to_dict(column: Column):
         fk_column = fk.column
         foreign_keys.append({'name': fk_column.name, 'table_name': fk_column.table.name})
 
-    return {
+    data = {
         'name': column.name,
         'primary_key': column.primary_key,
         'nullable': column.nullable,
         'type': column.type.__class__.__name__,
-        'foreign_keys': foreign_keys
+        'foreign_keys': foreign_keys,
+        'table': column.table.name
     }
 
+    return data
 
-def table_to_dict(table: Table, column_names: set=None):
-    columns = table.columns
 
-    if column_names:
-        columns = names_to_columns(column_names, table.columns)
-
+def table_to_dict(table: Table):
     return {
         'name': table.name,
         'schema': table.schema,
-        'columns': [column_to_dict(column) for column in columns]
+        'columns': [column_to_dict(column) for column in table.columns]
     }
 
 
-def names_to_columns(column_names, table_columns):
+def names_to_columns(column_names, table_columns, all_tables=None):
     columns = []
 
     for column_name in column_names:
-        column = table_columns.get(column_name)
+        if all_tables:
+            # this means we need to look up fully qualified column names.
+            try:
+                table_name, column_name = [value.strip() for value in column_name.split('.')]
+                column = all_tables.get(table_name, Table()).columns.get(column_name, None)
+            except ValueError:
+                # If the column name doesn't have a '.' in it then it's not valid.
+                column = None
+        else:
+            # This means we only need to look at the table_columns.
+            column = table_columns.get(column_name)
 
         if column is not None:
             columns.append(column)
@@ -243,6 +253,35 @@ def apply_column_sorts(table: Table, query, sorts: dict):
     return query
 
 
+ColumnPair = namedtuple('ColumnPair', ['from_column', 'to_column'])
+TableJoin = namedtuple('TableJoin', ['table_name', 'column_pairs', 'outer_join'])
+
+
+def apply_join(query: Select, tables: dict, table: Table, join: TableJoin):
+    # TODO: enable multiple joins
+    join_table = tables.get(join.table_name)
+
+    if join_table is None:
+        raise ValueError('Invalid join. Table with name "{}" does not exist.'.format(join.table_name))
+
+    error_msg = 'Invalid join, "{}" is not a column on table "{}"'
+    join_conditions = []
+
+    for column_pair in join.column_pairs:
+        from_col = table.columns.get(column_pair.from_column)
+        to_col = join_table.columns.get(column_pair.to_column)
+
+        if from_col is None:
+            raise ValueError(error_msg.format(column_pair.from_column, table.name))
+
+        if to_col is None:
+            raise ValueError(error_msg.format(column_pair.to_column, join_table.name))
+
+        join_conditions.append(from_col == to_col)
+
+    return query.select_from(table.join(join_table, onclause=and_(*join_conditions), isouter=join.outer_join))
+
+
 class DBService:
     """
     TODO:
@@ -274,23 +313,23 @@ class DBService:
 
         return schemas
 
-    def get_table(self, table_name, column_names: set=None):
+    def get_table(self, table_name):
         table = self.meta.tables.get(table_name, None)
 
         if table is None:
             raise NotFoundError('table "{}" does exist'.format(table_name))
 
-        return table_to_dict(table, column_names)
+        return table_to_dict(table)
 
     def query_table(self, table_name, column_names: set=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
-                    filters: dict=None, sorts: dict=None):
+                    filters: dict=None, sorts: dict=None, join: TableJoin=None):
         table = self.meta.tables.get(table_name, None)
         rows = []
 
         if column_names is None:
             columns = table.columns
         else:
-            columns = names_to_columns(column_names, table.columns)
+            columns = names_to_columns(column_names, table.columns, all_tables=self.meta.tables)
 
         if len(columns) == 0:
             return []
@@ -306,13 +345,24 @@ class DBService:
         if sorts is not None:
             query = apply_column_sorts(table, query, sorts)
 
+        if join is not None:
+            query = apply_join(query, self.meta.tables, table, join)
+
         with self.db.connect() as conn:
             result = conn.execute(query)
 
             for row in result:
-                rows.append(dict(row))
+                data = {}
 
-        return rows
+                for column in columns:
+                    full_column_name = column.table.name + '.' + column.name
+                    data[full_column_name] = row[column]
+
+                rows.append(data)
+
+        column_data = [column_to_dict(column) for column in columns]
+
+        return rows, column_data
 
 if __name__ == '__main__':
     import configparser

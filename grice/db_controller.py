@@ -1,7 +1,25 @@
-from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter, ColumnSort, SORT_DIRECTIONS
+from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter, ColumnSort, SORT_DIRECTIONS, \
+    ColumnPair, TableJoin
 from flask import Flask, jsonify, render_template, request
 
 from grice.errors import NotFoundError
+
+
+def parse_pagination(page, per_page):
+    try:
+        page = int(page) - 1
+    except (ValueError, TypeError):
+        page = DEFAULT_PAGE
+
+    try:
+        per_page = int(per_page)
+    except (ValueError, TypeError):
+        per_page = DEFAULT_PER_PAGE
+
+    if page < 0:
+        page = DEFAULT_PAGE
+
+    return page, per_page
 
 
 def parse_filter(filter_string: str):
@@ -98,6 +116,39 @@ def parse_sorts(sort_list):
     return None
 
 
+def parse_join(join_str, outer_join: bool):
+    """
+    Parses the join string from the URL.
+
+    Expected format: table_name,from_col:to_col;from_col:to_col
+
+    :param join_str: The join= string from the URL
+    :param outer_join: boolean, true if the join is an outer join, false for inner join.
+    :return: TableJoin
+    """
+    # TODO: find a way to notify user of bad join. Should we just completely fail? Should we just warn them?
+
+    if join_str is None:
+        return None
+
+    try:
+        table_name, column_pair_strings = join_str.split(',')
+    except ValueError:
+        return None
+
+    column_pair_strings = column_pair_strings.split(';')
+    column_pairs = []
+
+    for column_pair_string in column_pair_strings:
+        from_column, to_column = column_pair_string.strip().split(':')
+        column_pairs.append(ColumnPair(from_column, to_column))
+
+    if len(column_pairs) == 0:
+        return None
+
+    return TableJoin(table_name, column_pairs, outer_join)
+
+
 def parse_query_args(query_args):
     """
     This method takes the query string from the request and returns all of the items related to the query API.
@@ -105,33 +156,16 @@ def parse_query_args(query_args):
     :param query_args: The query args from flask.request.args
     :return: column_names: list, page: int, per_page: int, filters: dict
     """
+    page, per_page = parse_pagination(query_args.get('page'), query_args.get('perPage'))
     filters = parse_filters(query_args.getlist('filter'))
     sorts = parse_sorts(query_args.getlist('sort'))
+    join = parse_join(query_args.get('join'), False) or parse_join(query_args.get('outerjoin'), True)
     column_names = query_args.get('cols', None)
-
-    try:
-        page = int(query_args.get('page', 1)) - 1
-    except ValueError:
-        page = DEFAULT_PAGE
-
-    per_page = query_args.get('perPage', None)
-
-    if per_page is not None:
-        try:
-            per_page = int(per_page)
-        except ValueError:
-            per_page = None
-
-    if per_page is None:
-        per_page = DEFAULT_PER_PAGE
-
-    if page < 0:
-        page = DEFAULT_PAGE
 
     if column_names:
         column_names = set([column_name.strip() for column_name in column_names.split(',')])
 
-    return column_names, page, per_page, filters, sorts
+    return column_names, page, per_page, filters, sorts, join
 
 
 class DBController:
@@ -156,16 +190,16 @@ class DBController:
     table_api.methods = ['GET', 'POST']
 
     def query_api(self, name):
-        column_names, page, per_page, filters, sorts = parse_query_args(request.args)
+        column_names, page, per_page, filters, sorts, join = parse_query_args(request.args)
 
         try:
-            table_info = self.db_service.get_table(name, column_names)
+            table_info = self.db_service.get_table(name)
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        table_info['rows'] = self.db_service.query_table(name, column_names, page, per_page, filters, sorts)
+        rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
 
-        return jsonify(**table_info)
+        return jsonify(table=table_info, rows=rows, columns=columns)
 
     query_api.methods = ['GET']
 
@@ -177,17 +211,18 @@ class DBController:
     tables_page.methods = ['GET']
 
     def table_page(self, name):
-        column_names, page, per_page, filters, sorts = parse_query_args(request.args)
+        column_names, page, per_page, filters, sorts, join = parse_query_args(request.args)
 
         try:
-            table = self.db_service.get_table(name, column_names)
+            table = self.db_service.get_table(name)
         except NotFoundError as e:
+            # TODO: render error page
             return jsonify(success=False, error=str(e)), 404
 
-        rows = self.db_service.query_table(name, column_names, page, per_page, filters, sorts)
+        rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
         title = "{} - Grice".format(name)
 
-        return render_template('table.html', title=title, table=table, rows=rows)
+        return render_template('table.html', title=title, table=table, rows=rows, columns=columns)
 
     table_page.methods = ['GET']
 

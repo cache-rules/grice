@@ -21,8 +21,9 @@
   };
 
   grice.TableDataComponent = {
-    controller: function (table, rows) {
+    controller: function (table, columns, rows) {
       this.table = table;
+      this.columns = columns;
       this.rows = m.prop(rows);
       this.queryError = m.prop(null);
 
@@ -31,7 +32,7 @@
       }
     },
     view: function (c) {
-      var headerCols = c.table.columns.map(function (col) {
+      var headerCols = c.columns.map(function (col) {
         return m('th', col.name);
       });
       var tableHeader = m('tr', headerCols);
@@ -45,8 +46,8 @@
         tableBody = m('tr', m('td.error', m('p', queryError)));
       } else {
         tableBody = rows.map(function (row) {
-          var cols = c.table.columns.map(function (col) {
-            return m('td', m('p', row[col.name]));
+          var cols = c.columns.map(function (col) {
+            return m('td', m('p', row[col.table + '.' + col.name]));
           });
 
           return m('tr', cols);
@@ -63,12 +64,13 @@
   grice.TableComponent = {
     controller: function () {
       this.table = grice._table;
+      this.columns = grice._columns;
       this.rows = grice._rows;
     },
     view: function (c) {
       return m('div.db-table', [
           m('h3.table-name', c.table.name),
-          m(grice.TableDataComponent, c.table, c.rows)
+          m(grice.TableDataComponent, c.table, c.columns, c.rows)
       ]);
     }
   };
