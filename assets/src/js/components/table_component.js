@@ -76,11 +76,11 @@
       rows = rows ? rows : [];
 
       if (queryError !== null) {
-        tableBody = m('tr', m('td.error', m('p', queryError)));
+        tableBody = m('tr', m('td.error', queryError));
       } else {
         tableBody = rows.map(function (row) {
           var cols = c.columns.map(function (col) {
-            return m('td', m('p', row[col.table + '.' + col.name]));
+            return m('td', row[col.table + '.' + col.name]);
           });
 
           return m('tr', cols);
