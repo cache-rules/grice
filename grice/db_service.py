@@ -321,7 +321,7 @@ class DBService:
 
         return table_to_dict(table)
 
-    def query_table(self, table_name, column_names: set=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
+    def query_table(self, table_name, column_names: list=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
                     filters: dict=None, sorts: dict=None, join: TableJoin=None):
         table = self.meta.tables.get(table_name, None)
         rows = []
@@ -332,7 +332,7 @@ class DBService:
             columns = names_to_columns(column_names, table.columns, all_tables=self.meta.tables)
 
         if len(columns) == 0:
-            return []
+            return [], []
 
         query = select(columns)
 
@@ -369,7 +369,4 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read('../config.ini')
     s = DBService(config['database'])
-    t = s.meta.tables.get('countrylanguage')
-    cols = t.columns
-    print(cols)
-    # r = s.query_table('device_args', {'name', 'device_id'})
+

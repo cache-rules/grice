@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter, ColumnSort, SORT_DIRECTIONS, \
     ColumnPair, TableJoin
 from flask import Flask, jsonify, render_template, request
@@ -163,7 +165,12 @@ def parse_query_args(query_args):
     column_names = query_args.get('cols', None)
 
     if column_names:
-        column_names = set([column_name.strip() for column_name in column_names.split(',')])
+        columns_dict = OrderedDict()
+
+        for column_name in column_names.split(','):
+            columns_dict[column_name.strip()] = True
+
+        column_names = list(columns_dict.keys())
 
     return column_names, page, per_page, filters, sorts, join
 
