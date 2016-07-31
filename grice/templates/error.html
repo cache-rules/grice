@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    {{ super() }}
+    <div class="error">
+
+{% if error_title %}
+    <h1 class="error-title">{{ error_title }}</h1>
+{% else %}
+    <h1 class="error-title">Unknown Error</h1>
+{% endif %}
+
+{% if msg %}
+    <h3 class="error-msg">
+        {{ msg }}
+    </h3>
+{% else %}
+    <h3 class="error-msg">
+        An unknown error has occurred. Contact your administrator if this keeps happening.
+    </h3>
+{% endif %}
+</div>
+{% endblock %}

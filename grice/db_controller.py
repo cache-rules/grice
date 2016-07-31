@@ -168,6 +168,14 @@ def parse_query_args(query_args):
     return column_names, page, per_page, filters, sorts, join
 
 
+def table_not_found(name):
+    code = 404
+    error_title = "{}: Table Not Found".format(code)
+    msg = 'A table with name "{}" could not be found.'.format(name)
+
+    return render_template('error.html', code=code, error_title=error_title, msg=msg), code
+
+
 class DBController:
     def __init__(self, app: Flask, db_service: DBService):
         self.app = app
@@ -215,9 +223,8 @@ class DBController:
 
         try:
             table = self.db_service.get_table(name)
-        except NotFoundError as e:
-            # TODO: render error page
-            return jsonify(success=False, error=str(e)), 404
+        except NotFoundError:
+            return table_not_found(name)
 
         rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
         title = "{} - Grice".format(name)
