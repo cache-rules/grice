@@ -229,7 +229,8 @@ class DBController:
         rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
         title = "{} - Grice".format(name)
 
-        return render_template('table.html', title=title, table=table, rows=rows, columns=columns)
+        return render_template('table.html', title=title, table=table, rows=rows, columns=columns, page=page + 1,
+                               per_page=per_page)
 
     table_page.methods = ['GET']
 

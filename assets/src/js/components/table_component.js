@@ -20,6 +20,39 @@
     return m.request(requestData).then(success, failure);
   };
 
+  grice.PaginationComponent = {
+    controller: function (table, rows, page, perPage) {
+      this.table = table;
+      this.rows = m.prop(rows);
+      this.page = m.prop(page);
+      this.perPage = m.prop(perPage);
+    },
+    view: function (c) {
+      var nextUrl = '/db/tables/' + c.table.name + '?page=' + (c.page() + 1) + '&perPage=' + c.perPage();
+      var prevUrl = '/db/tables/' + c.table.name + '?page=' + (c.page() - 1) + '&perPage=' + c.perPage();
+      var prevEl;
+      var nextEl;
+
+      if (c.page() <= 1) {
+        prevEl = '<';
+      } else {
+        prevEl = m('a', {href: prevUrl}, '<');
+      }
+
+      if (c.rows().length < c.perPage()) {
+        nextEl = '>';
+      } else {
+        nextEl = m('a', {href: nextUrl}, '>');
+      }
+
+      return m('div.pagination', [
+          m('div.previous', prevEl),
+          m('div.page', 'Page ' + c.page()),
+          m('div.next', nextEl)
+      ]);
+    }
+  };
+
   grice.TableDataComponent = {
     controller: function (table, columns, rows) {
       this.table = table;
@@ -66,11 +99,15 @@
       this.table = grice._table;
       this.columns = grice._columns;
       this.rows = grice._rows;
+      this.page = grice._page;
+      this.perPage = grice._perPage;
     },
     view: function (c) {
       return m('div.db-table', [
-          m('h3.table-name', c.table.name),
-          m(grice.TableDataComponent, c.table, c.columns, c.rows)
+        m('h3.table-name', c.table.name),
+        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage),
+        m(grice.TableDataComponent, c.table, c.columns, c.rows),
+        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage)
       ]);
     }
   };
