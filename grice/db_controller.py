@@ -102,7 +102,7 @@ def parse_sorts(sort_list):
 
     # It only makes sense to have one sort per column, so we stash sorts in a dict. If multiple sorts exist for a
     # column, then we only keep the last sort for that column.
-    sorts = {}
+    sorts = OrderedDict()
 
     for sort_string in sort_list:
         try:
@@ -113,7 +113,7 @@ def parse_sorts(sort_list):
         sorts[column_sort.column_name] = column_sort
 
     if len(sorts):
-        return sorts.values()
+        return list(sorts.values())
 
     return None
 
