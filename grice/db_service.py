@@ -238,17 +238,23 @@ def apply_column_filters(table: Table, query, filters: dict):
     return query
 
 
-ColumnSort = namedtuple('ColumnSort', ['column_name', 'direction'])
+ColumnSort = namedtuple('ColumnSort', ['table_name', 'column_name', 'direction'])
 
 
-def apply_column_sorts(table: Table, query, sorts: dict):
+def apply_column_sorts(tables: dict, table: Table, query, sorts: dict):
     for sort in sorts:
-        if sort.column_name in table.columns:
+        if sort.table_name is not None:
+            # TODO: should make this a method on DBService
+            column = tables.get(sort.table_name, Table()).columns.get(sort.column_name, None)
+        else:
+            column = table.columns.get(sort.column_name, None)
+
+        if column is not None:
             if sort.direction == 'asc':
-                query = query.order_by(asc(table.columns.get(sort.column_name)))
+                query = query.order_by(asc(column))
 
             if sort.direction == 'desc':
-                query = query.order_by(desc(table.columns.get(sort.column_name)))
+                query = query.order_by(desc(column))
 
     return query
 
@@ -343,7 +349,7 @@ class DBService:
             query = apply_column_filters(table, query, filters)
 
         if sorts is not None:
-            query = apply_column_sorts(table, query, sorts)
+            query = apply_column_sorts(self.meta.tables, table, query, sorts)
 
         if join is not None:
             query = apply_join(query, self.meta.tables, table, join)

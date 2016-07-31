@@ -80,6 +80,7 @@ def parse_sort(sort_string):
     :param sort_string: string
     :return:
     """
+    table_name = None
     column_name, direction = [s.strip() for s in sort_string.split(',')]
     direction = direction.lower()
 
@@ -89,7 +90,13 @@ def parse_sort(sort_string):
     if direction.lower() not in SORT_DIRECTIONS:
         raise ValueError('invalid sort direction')
 
-    return ColumnSort(column_name, direction)
+    try:
+        table_name, column_name = column_name.split('.')
+    except ValueError:
+        # This means the column name is not in the table_name.column_name format, which is fine.
+        pass
+
+    return ColumnSort(table_name, column_name, direction)
 
 
 def parse_sorts(sort_list):
