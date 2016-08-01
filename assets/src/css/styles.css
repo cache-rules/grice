@@ -10,6 +10,9 @@ body {
 .schema-tables {
   list-style: none;
 }
+.pagination a {
+  text-decoration: none;
+}
 .previous,
 .page,
 .next {
