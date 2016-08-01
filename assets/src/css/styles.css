@@ -10,3 +10,15 @@ body {
 .schema-tables {
   list-style: none;
 }
+.previous,
+.page,
+.next {
+  display: inline-block;
+}
+.previous {
+  margin-right: .25em;
+}
+.page,
+.next {
+  margin: 0 .25em;
+}

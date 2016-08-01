@@ -21,25 +21,26 @@
   };
 
   grice.PaginationComponent = {
-    controller: function (table, rows, page, perPage) {
+    controller: function (table, rows, page, perPage, queryParams) {
       this.table = table;
-      this.rows = m.prop(rows);
-      this.page = m.prop(page);
-      this.perPage = m.prop(perPage);
+      this.rows = rows;
+      this.page = page;
+      this.perPage = perPage;
+      this.queryParams = queryParams;
     },
     view: function (c) {
-      var nextUrl = '/db/tables/' + c.table.name + '?page=' + (c.page() + 1) + '&perPage=' + c.perPage();
-      var prevUrl = '/db/tables/' + c.table.name + '?page=' + (c.page() - 1) + '&perPage=' + c.perPage();
+      var nextUrl = grice.generateTableUrl(c.table.name, c.page + 1, c.perPage, c.queryParams);
+      var prevUrl = grice.generateTableUrl(c.table.name, c.page - 1, c.perPage, c.queryParams);
       var prevEl;
       var nextEl;
 
-      if (c.page() <= 1) {
+      if (c.page <= 1) {
         prevEl = '<';
       } else {
         prevEl = m('a', {href: prevUrl}, '<');
       }
 
-      if (c.rows().length < c.perPage()) {
+      if (c.rows.length < c.perPage) {
         nextEl = '>';
       } else {
         nextEl = m('a', {href: nextUrl}, '>');
@@ -47,7 +48,7 @@
 
       return m('div.pagination', [
           m('div.previous', prevEl),
-          m('div.page', 'Page ' + c.page()),
+          m('div.page', 'Page ' + c.page),
           m('div.next', nextEl)
       ]);
     }
@@ -103,11 +104,12 @@
       this.perPage = grice._perPage;
     },
     view: function (c) {
+      var queryParams = grice.parseQueryParams();
       return m('div.db-table', [
         m('h3.table-name', c.table.name),
-        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage),
+        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage, queryParams),
         m(grice.TableDataComponent, c.table, c.columns, c.rows),
-        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage)
+        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage, queryParams)
       ]);
     }
   };
