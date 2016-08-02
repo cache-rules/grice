@@ -63,16 +63,12 @@ def names_to_columns(column_names, table_columns, all_tables=None):
     columns = []
 
     for column_name in column_names:
-        if all_tables:
-            # this means we need to look up fully qualified column names.
-            try:
-                table_name, column_name = [value.strip() for value in column_name.split('.')]
-                column = all_tables.get(table_name, Table()).columns.get(column_name, None)
-            except ValueError:
-                # If the column name doesn't have a '.' in it then it's not valid.
-                column = None
-        else:
-            # This means we only need to look at the table_columns.
+        try:
+            # Try the fully qualified column name first.
+            table_name, column_name = [value.strip() for value in column_name.split('.')]
+            column = all_tables.get(table_name, Table()).columns.get(column_name, None)
+        except ValueError:
+            # Assume the column name does not include the table name.
             column = table_columns.get(column_name)
 
         if column is not None:
