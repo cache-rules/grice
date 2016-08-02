@@ -9,8 +9,8 @@ from sqlalchemy.engine import reflection
 
 DEFAULT_PAGE = 0
 DEFAULT_PER_PAGE = 50
-FILTER_TYPES = ['lt', 'lte', 'eq', 'neq', 'gt', 'gte', 'in', 'not_in', 'bt', 'nbt']
 LIST_FILTERS = ['in', 'not_in', 'bt', 'nbt']
+FILTER_TYPES = ['lt', 'lte', 'eq', 'neq', 'gt', 'gte'] + LIST_FILTERS
 SORT_DIRECTIONS = ['asc', 'desc']
 
 
