@@ -246,6 +246,16 @@ class DBController:
         return render_template('table.html', title=title, table=table, rows=rows, columns=columns, page=page + 1,
                                per_page=per_page)
 
+    def chart_page(self, name):
+        try:
+            table = self.db_service.get_table(name)
+        except NotFoundError:
+            return table_not_found(name)
+
+        title = "{} - Charting - Grice".format(name)
+
+        return render_template('chart.html', title=title, table=table)
+
     table_page.methods = ['GET']
 
     def register_routes(self):
@@ -258,3 +268,4 @@ class DBController:
         self.app.add_url_rule('/db', 'db_index', self.tables_page)
         self.app.add_url_rule('/db/tables', 'tables_page', self.tables_page)
         self.app.add_url_rule('/db/tables/<name>', 'table_page', self.table_page)
+        self.app.add_url_rule('/db/tables/<name>/chart', 'chart_page', self.chart_page)

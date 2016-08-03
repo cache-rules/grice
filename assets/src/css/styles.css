@@ -25,3 +25,43 @@ body {
 .next {
   margin: 0 .25em;
 }
+.column-header {
+  position: relative;
+}
+.column-name,
+.column-menu .menu-item {
+  padding: 0 .5em;
+}
+.column-header .column-menu {
+  display: none;
+}
+.column-header:hover {
+  color: #FFFFFF;
+  background-color: #1EAEDB;
+}
+.column-header:hover .column-menu {
+  display: block;
+  position: absolute;
+  min-width: 130px;
+  width: 100%;
+  font-weight: normal;
+  color: #FFFFFF;
+  background-color: #1EAEDB;
+}
+.menu-item {
+  cursor: pointer;
+}
+.chart .chart-controls {
+  margin: 1em auto;
+}
+.chart .svg-container {
+  margin: 1em auto;
+}
+.chart-controls .column-picker {
+  display: inline-block;
+  margin-right: 1em;
+}
+svg.box-plot {
+  margin-right: 1em;
+  margin-bottom: 1em;
+}

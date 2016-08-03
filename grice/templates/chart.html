@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="chart"></div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="/assets/libs/js/d3.min.js"></script>
+    <script src="/assets/src/js/components/table_component.js"></script>
+    <script src="/assets/src/js/components/chart_component.js"></script>
+    <script>
+        grice._table = {{ table|tojson }};
+        m.mount(document.querySelector('.gza'), grice.TableChartComponent);
+    </script>
+{% endblock %}

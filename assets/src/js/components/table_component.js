@@ -54,12 +54,39 @@
     }
   };
 
+  grice.ColumnHeader = {
+    controller: function (column, queryParams, showChart) {
+      this.column = column;
+      this.queryParams = queryParams;
+      this.showChart = showChart;
+    },
+    view: function (c) {
+      var colType = c.column.type;
+      var menuItems = [];
+
+      if (colType == 'FLOAT' || colType == 'INTEGER' || colType == 'REAL' || colType == 'NUMERIC') {
+        var showChart = function () {
+          c.showChart(c.column);
+        };
+
+        menuItems.push(m('div.menu-item', {onclick: showChart}, 'Chart'));
+      }
+
+      var menu = m('div.column-menu', menuItems);
+      var columnHeaderItems = [m('div.column-name', c.column.name), menu];
+
+      return m('th', m('div.column-header.u-full-width', [columnHeaderItems]));
+    }
+  };
+
   grice.TableDataComponent = {
-    controller: function (table, columns, rows) {
+    controller: function (table, columns, rows, queryParams, showChart) {
       this.table = table;
       this.columns = columns;
       this.rows = m.prop(rows);
       this.queryError = m.prop(null);
+      this.queryParams = queryParams;
+      this.showChart = showChart;
 
       if (rows == null) {
         queryTable(this.table, this.rows, this.queryError);
@@ -67,7 +94,7 @@
     },
     view: function (c) {
       var headerCols = c.columns.map(function (col) {
-        return m('th', col.name);
+        return m(grice.ColumnHeader, col, c.queryParams, c.showChart);
       });
       var tableHeader = m('tr', headerCols);
       var tableBody;
@@ -102,17 +129,18 @@
       this.rows = grice._rows;
       this.page = grice._page;
       this.perPage = grice._perPage;
+      this.queryParams = grice.parseQueryParams();
+      this.showChart = function (column) {
+        window.location = grice.generateChartUrl(this.table.name, column, this.queryParams);
+      }.bind(this);
     },
     view: function (c) {
-      var queryParams = grice.parseQueryParams();
       return m('div.db-table', [
         m('h3.table-name', c.table.name),
-        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage, queryParams),
-        m(grice.TableDataComponent, c.table, c.columns, c.rows),
-        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage, queryParams)
+        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage, c.queryParams),
+        m(grice.TableDataComponent, c.table, c.columns, c.rows, c.queryParams, c.showChart),
+        m(grice.PaginationComponent, c.table, c.rows, c.page, c.perPage, c.queryParams)
       ]);
     }
   };
-
-
 })();
