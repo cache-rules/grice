@@ -38,22 +38,13 @@
     scale.range([height, 0]);
 
     var renderer = function (g) {
-      console.log('renderer');
-      g.each(function (d, i) {
-        console.log(i);
+      g.each(function (d) {
         var boxGroup = d3.select(this);
         var verticalLines = boxGroup.selectAll('line.center').data([d.whiskers]);
-        var y1 = function(d) {
-          if (i == 0) {
-            console.log(d.bottom);
-          }
-          return scale(d.bottom);
-        };
-
         var newVerticalLines = verticalLines.enter().insert('line', 'rect')
             .attr('class', 'center')
             .attr('stroke', '#000')
-            .attr('stroke-width', 1)
+            .attr('stroke-width', 1);
 
         handleVerticalLines(newVerticalLines, scale, width);
         handleVerticalLines(verticalLines, scale, width);
@@ -77,7 +68,6 @@
         handleMedianLines(medianLines, scale, width);
 
         var whiskers = boxGroup.selectAll('line.whisker').data([d.whiskers.top, d.whiskers.bottom]);
-
         var newWhiskers = whiskers.enter().append('line')
             .attr('class', 'whisker')
             .attr('stroke', '#000')
