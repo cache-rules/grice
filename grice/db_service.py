@@ -18,6 +18,12 @@ TableJoin = namedtuple('TableJoin', ['table_name', 'column_pairs', 'outer_join']
 
 
 def init_database(db_config):
+    """
+    Creates a SqlAlchemy engine object from a config file.
+
+    :param db_config:
+    :return: SqlAlchemy engine object.
+    """
     try:
         db_args = {
             'username': db_config['username'],
@@ -36,6 +42,12 @@ def init_database(db_config):
 
 
 def column_to_dict(column: Column):
+    """
+    Converts a SqlAlchemy Column object to a dict so we can return JSON.
+
+    :param column: a SqlAlchemy Column
+    :return: dict
+    """
     foreign_keys = []
 
     for fk in column.foreign_keys:
@@ -55,6 +67,12 @@ def column_to_dict(column: Column):
 
 
 def table_to_dict(table: Table):
+    """
+    Converts a SqlAlchemy Table object to a dict so we can return JSON.
+
+    :param table: a SqlAlchemy Table
+    :return: dict
+    """
     return {
         'name': table.name,
         'schema': table.schema,
@@ -63,6 +81,14 @@ def table_to_dict(table: Table):
 
 
 def get_column(column_name, table: Table, join_table: Table):
+    """
+    Converts a column name to a column object.
+
+    :param column_name: str, column_name strings, can be None.
+    :param table: The main table.
+    :param join_table: The table we are joining on, can be None.
+    :return: SqlAlchemy column object.
+    """
     table_name = None
 
     try:
@@ -83,6 +109,14 @@ def get_column(column_name, table: Table, join_table: Table):
 
 
 def names_to_columns(column_names, table: Table, join_table: Table):
+    """
+    Converts column names to columns. If column_names is None then we assume all columns are wanted.
+
+    :param column_names: list of column_name strings, can be None.
+    :param table: The main table.
+    :param join_table: The table we are joining on, can be None.
+    :return: list of SqlAlchemy column objects.
+    """
     if column_names is None:
         columns = table.columns.values() + join_table.columns.values()
         return columns
@@ -101,6 +135,7 @@ def names_to_columns(column_names, table: Table, join_table: Table):
 def convert_url_value(url_value: str, column: Column):
     """
     Converts a given string value to the given Column's type.
+
     :param url_value: a string
     :param column: a sqlalchemy Column object
     :return: value converted to type in column object.
@@ -238,7 +273,7 @@ def apply_column_filters(query, table: Table, join_table: Table, filters: dict):
     :param table: SQLAlchemy Table object.
     :param join_table: SQLAlchemy Table object.
     :param filters: The filters dict from db_controller.parse_filters: in form of column_name -> filters list
-    :return:
+    :return: A SQLAlchemy select object with filters applied.
     """
 
     for column_name, filter_list in filters.items():
@@ -262,6 +297,15 @@ def apply_column_filters(query, table: Table, join_table: Table, filters: dict):
 
 
 def apply_column_sorts(query, table: Table, join_table: Table, sorts: dict):
+    """
+    Adds sorts to a query object.
+
+    :param query: A SQLAlchemy select object.
+    :param table: The Table we are joining from.
+    :param join_table: The Table we are joining to.
+    :param sorts: List of ColumnSort objects.
+    :return: A SQLAlchemy select object modified to with sorts.
+    """
     for sort in sorts:
         if sort.table_name == table.name:
             column = table.columns.get(sort.column_name, None)
@@ -288,7 +332,7 @@ def apply_join(query: Select, table: Table, join_table: Table, join: TableJoin):
     :param table: The Table we are joining from.
     :param join_table: The Table we are joining to.
     :param join: The Join object describing how to join the tables.
-    :return: A query object modified to join two tables.
+    :return: A SQLAlchemy select object modified to join two tables.
     """
     error_msg = 'Invalid join, "{}" is not a column on table "{}"'
     join_conditions = []
