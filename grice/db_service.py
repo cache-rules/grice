@@ -12,6 +12,9 @@ DEFAULT_PER_PAGE = 50
 LIST_FILTERS = ['in', 'not_in', 'bt', 'nbt']
 FILTER_TYPES = ['lt', 'lte', 'eq', 'neq', 'gt', 'gte'] + LIST_FILTERS
 SORT_DIRECTIONS = ['asc', 'desc']
+ColumnSort = namedtuple('ColumnSort', ['table_name', 'column_name', 'direction'])
+ColumnPair = namedtuple('ColumnPair', ['from_column', 'to_column'])
+TableJoin = namedtuple('TableJoin', ['table_name', 'column_pairs', 'outer_join'])
 
 
 def init_database(db_config):
@@ -59,17 +62,35 @@ def table_to_dict(table: Table):
     }
 
 
-def names_to_columns(column_names, table_columns, all_tables=None):
+def get_column(column_name, table: Table, join_table: Table):
+    table_name = None
+
+    try:
+        column_name, table_name = column_name.split('.')
+    except ValueError:
+        # This is fine, this means that this isn't a fully qualified column name.
+        pass
+
+    if table_name:
+        if table_name == table.name:
+            return table.columns.get(column_name, None)
+        elif join_table is not None and table_name == join_table.name:
+            return join_table.columns.get(column_name, None)
+        else:
+            return None
+
+    return table.columns.get(column_name, None)
+
+
+def names_to_columns(column_names, table: Table, join_table: Table):
+    if column_names is None:
+        columns = table.columns.values() + join_table.columns.values()
+        return columns
+
     columns = []
 
     for column_name in column_names:
-        try:
-            # Try the fully qualified column name first.
-            table_name, column_name = [value.strip() for value in column_name.split('.')]
-            column = all_tables.get(table_name, Table()).columns.get(column_name, None)
-        except ValueError:
-            # Assume the column name does not include the table name.
-            column = table_columns.get(column_name)
+        column = get_column(column_name, table, join_table)
 
         if column is not None:
             columns.append(column)
@@ -106,7 +127,12 @@ class ColumnFilter:
         if filter_type not in FILTER_TYPES:
             raise ValueError('Invalid filter type "{}", valid types: {}'.format(filter_type, FILTER_TYPES))
 
-        self.column_name = column_name
+        try:
+            self.table_name, self.column_name = column_name.split('.')
+        except ValueError:
+            self.table_name = None
+            self.column_name = column_name
+
         self.filter_type = filter_type
         self.value = value
         self.url_value = url_value
@@ -197,7 +223,7 @@ def get_filter_expressions(column, filter_list: list):
     return expressions
 
 
-def apply_column_filters(table: Table, query, filters: dict):
+def apply_column_filters(query, table: Table, join_table: Table, filters: dict):
     """
     Apply the ColumnFilters from the filters object to the query.
 
@@ -208,14 +234,15 @@ def apply_column_filters(table: Table, query, filters: dict):
         - alternatively allow BETWEEN and NOT BETWEEN, and if multiples just OR those.
         - Filter sets between columns should be AND'ed.
 
-    :param table: SQLAlchemy Table object.
     :param query: SQLAlchemy Select object.
+    :param table: SQLAlchemy Table object.
+    :param join_table: SQLAlchemy Table object.
     :param filters: The filters dict from db_controller.parse_filters: in form of column_name -> filters list
     :return:
     """
 
     for column_name, filter_list in filters.items():
-        column = table.columns.get(column_name)
+        column = get_column(column_name, table, join_table)
 
         if column is not None:
             filter_expressions = get_filter_expressions(column, filter_list)
@@ -234,16 +261,12 @@ def apply_column_filters(table: Table, query, filters: dict):
     return query
 
 
-ColumnSort = namedtuple('ColumnSort', ['table_name', 'column_name', 'direction'])
-
-
-def apply_column_sorts(tables: dict, table: Table, query, sorts: dict):
+def apply_column_sorts(query, table: Table, join_table: Table, sorts: dict):
     for sort in sorts:
-        if sort.table_name is not None:
-            # TODO: should make this a method on DBService
-            column = tables.get(sort.table_name, Table()).columns.get(sort.column_name, None)
-        else:
+        if sort.table_name == table.name:
             column = table.columns.get(sort.column_name, None)
+        elif join_table is not None and sort.table_name == join_table.name:
+            column = join_table.columns.get(sort.column_name, None)
 
         if column is not None:
             if sort.direction == 'asc':
@@ -255,17 +278,18 @@ def apply_column_sorts(tables: dict, table: Table, query, sorts: dict):
     return query
 
 
-ColumnPair = namedtuple('ColumnPair', ['from_column', 'to_column'])
-TableJoin = namedtuple('TableJoin', ['table_name', 'column_pairs', 'outer_join'])
+def apply_join(query: Select, table: Table, join_table: Table, join: TableJoin):
+    """
+    Performs a inner or outer join between two tables on a given query object.
 
+    TODO: enable multiple joins
 
-def apply_join(query: Select, tables: dict, table: Table, join: TableJoin):
-    # TODO: enable multiple joins
-    join_table = tables.get(join.table_name)
-
-    if join_table is None:
-        raise ValueError('Invalid join. Table with name "{}" does not exist.'.format(join.table_name))
-
+    :param query: A SQLAlchemy select object.
+    :param table: The Table we are joining from.
+    :param join_table: The Table we are joining to.
+    :param join: The Join object describing how to join the tables.
+    :return: A query object modified to join two tables.
+    """
     error_msg = 'Invalid join, "{}" is not a column on table "{}"'
     join_conditions = []
 
@@ -319,19 +343,27 @@ class DBService:
         table = self.meta.tables.get(table_name, None)
 
         if table is None:
-            raise NotFoundError('table "{}" does exist'.format(table_name))
+            raise NotFoundError('Table "{}" does exist'.format(table_name))
 
         return table_to_dict(table)
 
     def query_table(self, table_name, column_names: list=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
                     filters: dict=None, sorts: dict=None, join: TableJoin=None):
         table = self.meta.tables.get(table_name, None)
+        join_table = None
+
+        if join is not None:
+            join_table = self.meta.tables.get(join.table_name, None)
+
         rows = []
 
-        if column_names is None:
-            columns = table.columns
-        else:
-            columns = names_to_columns(column_names, table.columns, all_tables=self.meta.tables)
+        if table is None:
+            raise NotFoundError('Table "{}" does exist'.format(table_name))
+
+        if join is not None and not join_table is not None:
+            raise ValueError('Invalid join. Table with name "{}" does not exist.'.format(join.table_name))
+
+        columns = names_to_columns(column_names, table, join_table)
 
         if len(columns) == 0:
             return [], []
@@ -342,13 +374,13 @@ class DBService:
             query = query.limit(per_page).offset(page * per_page)
 
         if filters is not None:
-            query = apply_column_filters(table, query, filters)
+            query = apply_column_filters(query, table, join_table, filters)
 
         if sorts is not None:
-            query = apply_column_sorts(self.meta.tables, table, query, sorts)
+            query = apply_column_sorts(query, table, join_table, sorts)
 
         if join is not None:
-            query = apply_join(query, self.meta.tables, table, join)
+            query = apply_join(query, table, join_table, join)
 
         with self.db.connect() as conn:
             result = conn.execute(query)
