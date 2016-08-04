@@ -231,17 +231,18 @@
   };
 
   grice.ChartControlsComponent = {
-    controller: function (table, x, y) {
+    controller: function (table, columns, x, y) {
       this.table = table;
+      this.columns = columns;
       this.x = x;
       this.y = y;
     },
     view: function (c) {
-      var yColumns = c.table.columns.filter(function (column) {
+      var yColumns = c.columns.filter(function (column) {
         return grice.NUMERIC_COLUMNS.indexOf(column.type) > -1;
       });
       return m('div.chart-controls', [
-        m(grice.ColumnPicker, c.table.columns, c.x, 'x-axis'),
+        m(grice.ColumnPicker, c.columns, c.x, 'x-axis'),
         m(grice.ColumnPicker, yColumns, c.y, 'y-axis')
       ]);
     }
@@ -293,6 +294,7 @@
     controller: function () {
       var me = this;
       this.table = grice._table;
+      this.columns = grice._columns;
       this.queryParams = grice.parseQueryParams();
       var x = null;
       var y = null;
@@ -300,7 +302,7 @@
       var yName = this.queryParams.y;
 
       if (this.queryParams.x) {
-        x = this.table.columns.find(function (c) {
+        x = this.columns.find(function (c) {
           if (c.table + '.' + c.name == xName) {
             return c;
           }
@@ -308,7 +310,7 @@
       }
 
       if (this.queryParams.y) {
-        y = this.table.columns.find(function (c) {
+        y = this.columns.find(function (c) {
           if (c.table + '.' + c.name == yName) {
             return c;
           }
@@ -339,7 +341,7 @@
       // TODO: allow user to switch to data view without navigating back to table page.
       return m('div.chart', [
           m('h4', 'Chart: ' + c.table.name),
-          m(grice.ChartControlsComponent, c.table, c.x, c.y, c.rows),
+          m(grice.ChartControlsComponent, c.table, c.columns, c.x, c.y, c.rows),
           m(grice.ChartComponent, c.table, c.x, c.y, c.rows, c.loading)
       ]);
     }

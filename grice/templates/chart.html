@@ -11,6 +11,7 @@
     <script src="/assets/src/js/components/chart_component.js"></script>
     <script>
         grice._table = {{ table|tojson }};
+        grice._columns = {{ columns|tojson }}
         m.mount(document.querySelector('.gza'), grice.TableChartComponent);
     </script>
 {% endblock %}

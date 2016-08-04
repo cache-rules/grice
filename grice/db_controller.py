@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter, ColumnSort, SORT_DIRECTIONS, \
-    ColumnPair, TableJoin
+    ColumnPair, TableJoin, column_to_dict
 from flask import Flask, jsonify, render_template, request
 
 from grice.errors import NotFoundError
@@ -247,14 +247,29 @@ class DBController:
                                per_page=per_page)
 
     def chart_page(self, name):
+        column_names, page, per_page, filters, sorts, join = parse_query_args(request.args)
+        join_table = None
+
         try:
             table = self.db_service.get_table(name)
         except NotFoundError:
             return table_not_found(name)
 
+        if join:
+            try:
+                join_table = self.db_service.get_table(join.table_name)
+            except NotFoundError:
+                # Bad join table name. Should probably warn the user, but ignoring for now.
+                pass
+
         title = "{} - Charting - Grice".format(name)
 
-        return render_template('chart.html', title=title, table=table)
+        columns = table['columns']
+
+        if join_table:
+            columns = columns + join_table['columns']
+
+        return render_template('chart.html', title=title, table=table, columns=columns)
 
     table_page.methods = ['GET']
 
