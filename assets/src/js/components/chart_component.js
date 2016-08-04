@@ -1,33 +1,49 @@
 (function () {
   var loadingPlot = function (el, c) {};
 
-  var handleVerticalLines = function (el, scale, width) {
-    el.attr('x1', width / 2)
+  var handleVerticalLines = function (el, scale, width, margin) {
+    var x = (width / 2) + margin.left;
+
+    el.attr('x1', x)
         .attr('y1', function(d) { return scale(d.bottom); })
-        .attr('x2', width / 2)
-        .attr('y2', function(d) { return scale(d.top); })
+        .attr('x2', x)
+        .attr('y2', function(d) { return scale(d.top); });
   };
 
-  var handleRects = function (el, scale, width) {
-    el.attr('x', 0)
+  var handleRects = function (el, scale, width, margin) {
+    el.attr('x', margin.left)
         .attr('y', function(d) { return scale(d.top); })
         .attr('width', width)
         .attr('height', function (d) { return Math.abs(scale(d.bottom) - scale(d.top)); })
         .attr('height', function(d) { return scale(d.bottom) - scale(d.top); });
   };
 
-  var handleMedianLines = function (el, scale, width) {
-    el.attr('x1', 0)
-        .attr('x2', width)
-        .attr('y1', function(d) { return scale(d); })
-        .attr('y2', function(d) { return scale(d); })
-  };
-
-  var handleWhiskers = function (el, scale, width) {
-    el.attr('x1', (width / 2) - (width / 4))
-        .attr('x2', (width / 2) + (width / 4))
+  var handleMedianLines = function (el, scale, width, margin) {
+    el.attr('x1', margin.left)
+        .attr('x2', width + margin.left)
         .attr('y1', scale)
         .attr('y2', scale);
+  };
+
+  var handleWhiskers = function (el, scale, width, margin) {
+    var x1 = (width / 2) - (width / 4) + margin.left;
+    var x2 = (width / 2) + (width / 4) + margin.left;
+
+    el.attr('x1', x1)
+        .attr('x2', x2)
+        .attr('y1', scale)
+        .attr('y2', scale);
+  };
+
+  var handleLabels = function (el, scale, width, margin) {
+    //var x = (width / 2) + margin.left;
+    var x = margin.left;
+    var y = scale(0) + (margin.bottom - 12);
+
+    el.attr('x', x)
+        .attr('y', y)
+        .attr('text-anchor', 'start')
+        .text(function (d) {return d});
   };
 
   var boxRenderer = function () {
@@ -35,9 +51,17 @@
     var height = 200;
     var domain = [];
     var scale = d3.scaleLinear();
-    scale.range([height, 0]);
+    var margin = {
+      top: 25,
+      right: 25,
+      bottom: 50,
+      left: 35
+    };
 
     var renderer = function (g) {
+      var boxWidth = width - margin.left - margin.right;
+      scale.range([height - margin.bottom, margin.top]);
+
       g.each(function (d) {
         var boxGroup = d3.select(this);
         var verticalLines = boxGroup.selectAll('line.center').data([d.whiskers]);
@@ -46,8 +70,8 @@
             .attr('stroke', '#000')
             .attr('stroke-width', 1);
 
-        handleVerticalLines(newVerticalLines, scale, width);
-        handleVerticalLines(verticalLines, scale, width);
+        handleVerticalLines(newVerticalLines, scale, boxWidth, margin);
+        handleVerticalLines(verticalLines, scale, boxWidth, margin);
 
         var rects = boxGroup.selectAll('rect.box').data([d.box]);
         var newRects = rects.enter().append('rect').attr('class', 'box')
@@ -55,8 +79,8 @@
             .attr('stroke', '#000')
             .attr('stroke-width', 1);
 
-        handleRects(newRects, scale, width);
-        handleRects(rects, scale, width);
+        handleRects(newRects, scale, boxWidth, margin);
+        handleRects(rects, scale, boxWidth, margin);
 
         var medianLines = boxGroup.selectAll('line.median').data([d.box.middle]);
         var newMedianLines = medianLines.enter().append('line')
@@ -64,8 +88,8 @@
             .attr('stroke', '#000')
             .attr('stroke-width', 1);
 
-        handleMedianLines(newMedianLines, scale, width);
-        handleMedianLines(medianLines, scale, width);
+        handleMedianLines(newMedianLines, scale, boxWidth, margin);
+        handleMedianLines(medianLines, scale, boxWidth, margin);
 
         var whiskers = boxGroup.selectAll('line.whisker').data([d.whiskers.top, d.whiskers.bottom]);
         var newWhiskers = whiskers.enter().append('line')
@@ -73,8 +97,16 @@
             .attr('stroke', '#000')
             .attr('stroke-width', 1);
 
-        handleWhiskers(newWhiskers, scale, width);
-        handleWhiskers(whiskers, scale, width);
+        handleWhiskers(newWhiskers, scale, boxWidth, margin);
+        handleWhiskers(whiskers, scale, boxWidth, margin);
+
+        var labels = boxGroup.selectAll('text.label').data([d.name]);
+        var newLabels = labels.enter().append('text')
+            .attr('class', 'label');
+
+        handleLabels(newLabels, scale, boxWidth, margin);
+        handleLabels(labels, scale, boxWidth, margin);
+
       });
     };
 
@@ -129,9 +161,12 @@
     }
 
     var data = grice.convertBoxPlotData(rows, c.table, xGetter, yGetter);
-    var renderer = boxRenderer().domain([yGetter(rows[0]), yGetter(rows[rows.length -1])]);
-    var width = 100;
-    var height = 200;
+    var width = 150;
+    var height = 250;
+    var renderer = boxRenderer()
+        .width(width)
+        .height(height)
+        .domain([yGetter(rows[0]), yGetter(rows[rows.length -1])]);
     var svg = svgContainer.selectAll('svg.box-plot').data(data);
     svg.enter().append("svg")
         .attr("class", "box-plot")
@@ -260,6 +295,8 @@
       return function(element) {
         var x = c.x();
         var y = c.y();
+
+        // TODO: probably just make it isNumeric return a boolean, assume isDiscrete if false.
         var xNumeric = grice.isNumericColumn(x);
         var yNumeric = grice.isNumericColumn(y);
         var xDiscrete = grice.isDiscreteColumn(x);
@@ -267,20 +304,18 @@
 
         if (c.loading()) {
           loadingPlot(element, c);
+        } else if (x && y && xNumeric && yNumeric) {
+          scatterPlot(element, c);
+        } else if (x && y && xDiscrete && yNumeric) {
+          boxPlot(element, c);
+        } else if (!x && y && yNumeric) {
+          boxPlot(element, c);
+        } else if (x && xNumeric && (!y || yDiscrete)) {
+          // TODO: Either invalid plot, so render error, or handle horizontal box plot.
+          blankPlot(element, c);
         } else {
-          if (x && y && xNumeric && yNumeric) {
-            scatterPlot(element, c);
-          } else if (x && y && xDiscrete && yNumeric) {
-            boxPlot(element, c);
-          } else if (!x && y && yNumeric) {
-            boxPlot(element, c);
-          } else if (x && xNumeric && !y) {
-            // TODO: Either invalid plot, so render error, or handle horizontal box plot.
-            blankPlot(element, c);
-          } else {
-            // TODO: Invalid plot, render error.
-            blankPlot(element, c);
-          }
+          // TODO: Invalid plot, render error.
+          blankPlot(element, c);
         }
       };
     },
