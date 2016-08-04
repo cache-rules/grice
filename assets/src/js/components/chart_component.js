@@ -36,7 +36,6 @@
   };
 
   var handleLabels = function (el, scale, width, margin) {
-    //var x = (width / 2) + margin.left;
     var x = margin.left;
     var y = scale(0) + (margin.bottom - 12);
 
