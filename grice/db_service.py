@@ -118,7 +118,11 @@ def names_to_columns(column_names, table: Table, join_table: Table):
     :return: list of SqlAlchemy column objects.
     """
     if column_names is None:
-        columns = table.columns.values() + join_table.columns.values()
+        columns = table.columns.values()
+
+        if join_table is not None:
+            columns = columns + join_table.columns.values()
+
         return columns
 
     columns = []
