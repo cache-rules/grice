@@ -4,7 +4,7 @@ grice = (function () {
   var grice = {};
 
   grice.NUMERIC_COLUMNS = ['FLOAT', 'INTEGER' , 'REAL', 'NUMERIC', 'SMALLINT'];
-  grice.DISCRETE_COLUMNS = ['CHAR', 'TEXT'];
+  grice.DISCRETE_COLUMNS = ['CHAR', 'TEXT', 'BOOLEAN'];
 
   grice.isNumericColumn = function (column) {
     if (column) {
