@@ -74,6 +74,7 @@
 
   grice.ChartComponent = {
     controller: function (table, x, y, rows, loading) {
+  grice.ChartAreaComponent = {
       this.table = table;
       this.x = x;
       this.y = y;
@@ -110,12 +111,12 @@
       };
     },
     view: function (c) {
-      var config = grice.ChartComponent.config(c);
+      var config = grice.ChartAreaComponent.config(c);
       return m('div.svg-container.u-full-width', {config: config});
     }
   };
 
-  grice.TableChartComponent = {
+  grice.ChartComponent = {
     controller: function () {
       var me = this;
       this.table = grice._table;
@@ -146,9 +147,9 @@
     view: function (c) {
       // TODO: allow user to switch to data view without navigating back to table page.
       return m('div.chart', [
-          m('h4', 'Chart: ' + c.table.name),
-          m(grice.ChartControlsComponent, c.table, c.columns, c.x, c.y, c.rows),
-          m(grice.ChartComponent, c.table, c.x, c.y, c.rows, c.loading)
+        m('h4', 'Chart: ' + c.table.name),
+        m(grice.ChartControlsComponent, c.table, c.columns, c.x, c.y),
+        m(grice.ChartAreaComponent, c.table, c.x, c.y, c.rows, c.loading)
       ]);
     }
   };
