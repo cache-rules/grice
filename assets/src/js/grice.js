@@ -41,6 +41,16 @@ grice = (function () {
     return 0;
   };
 
+  grice.findColumn = function (columns, columnName) {
+    if (columnName) {
+      return columns.find(function (column) {
+        return column.table + '.' + column.name == columnName;
+      });
+    }
+
+    return null;
+  };
+
   var whiskerBottom = function (rows, boxBottom, iqr) {
     var i, value;
 
@@ -116,7 +126,7 @@ grice = (function () {
     return groupedData;
   };
 
-  grice.convertBoxPlotData = function (rows, table, getGroup, getValue) {
+  grice.convertBoxPlotData = function (table, rows, getGroup, getValue) {
     /**
      * Filters groups rows if needed, then converts each group to box plot stats. Assumes rows are sorted.
      */
