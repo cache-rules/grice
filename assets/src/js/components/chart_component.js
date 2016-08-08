@@ -1,16 +1,4 @@
 (function () {
-  var blankPlot = function (el, c) {
-    var svg = d3.select(el);
-
-    if (c.loading()) {
-      // TODO: handle loading state
-      return;
-    }
-
-    // TODO: handle blank chart state (i.e. no columns chosen).
-    // TODO: handle invalid chart state
-  };
-
   grice.ColumnPicker = {
     controller: function (columns, selected, name) {
       this.columns = columns;
@@ -55,102 +43,98 @@
   };
 
   grice.ChartControlsComponent = {
-    controller: function (table, columns, x, y) {
-      this.table = table;
-      this.columns = columns;
-      this.x = x;
-      this.y = y;
+    controller: function (model) {
+      this.model = model;
     },
     view: function (c) {
-      var yColumns = c.columns.filter(function (column) {
+      var yColumns = c.model.columns.filter(function (column) {
         return grice.NUMERIC_COLUMNS.indexOf(column.type) > -1;
       });
+
+      var colorColumns = c.model.columns.filter(function (column) {
+        return grice.DISCRETE_COLUMNS.indexOf(column.type) > -1;
+      });
+
       return m('div.chart-controls', [
-        m(grice.ColumnPicker, c.columns, c.x, 'x-axis'),
-        m(grice.ColumnPicker, yColumns, c.y, 'y-axis')
+        m(grice.ColumnPicker, c.model.columns, c.model.x, 'x-axis'),
+        m(grice.ColumnPicker, yColumns, c.model.y, 'y-axis'),
+        m(grice.ColumnPicker, colorColumns, c.model.color, 'color')
       ]);
     }
   };
 
-  grice.ChartComponent = {
-    controller: function (table, x, y, rows, loading) {
   grice.ChartAreaComponent = {
-      this.table = table;
-      this.x = x;
-      this.y = y;
-      this.rows = rows;
-      this.loading = loading;
-    },
-    config: function (c) {
-      // TODO: re-trigger rendering of chart when screen size changes.
-      return function(element) {
-        var x = c.x();
-        var y = c.y();
+    controller: function (model) {
+      this.model = model;
+      this.boxRenderer = new grice.BoxRenderer(model);
+      this.scatterRenderer = new grice.ScatterRenderer(model);
 
-        // TODO: probably just make it isNumeric return a boolean, assume isDiscrete if false.
-        var xNumeric = grice.isNumericColumn(x);
-        var yNumeric = grice.isNumericColumn(y);
-        var xDiscrete = grice.isDiscreteColumn(x);
-        var yDiscrete = grice.isDiscreteColumn(y);
+      this.renderChart = function (el) {
+        var type = this.model.type();
 
-        if (c.loading()) {
-          blankPlot(element, c);
-        } else if (x && y && xNumeric && yNumeric) {
-          grice.scatterPlot(element, c);
-        } else if (x && y && xDiscrete && yNumeric) {
-          grice.boxPlot(element, c);
-        } else if (!x && y && yNumeric) {
-          grice.boxPlot(element, c);
-        } else if (x && xNumeric && (!y || yDiscrete)) {
-          // TODO: Either invalid plot, so render error, or handle horizontal box plot.
-          blankPlot(element, c);
+        if (type == grice.CHART_TYPES.SCATTER) {
+          this.scatterRenderer.render(el);
+        }else if (type == grice.CHART_TYPES.BOX) {
+          this.boxRenderer.render(el);
         } else {
-          // TODO: Invalid plot, render error.
-          blankPlot(element, c);
+          console.log('render blank plot.');
         }
-      };
+      }.bind(this);
+
+      this.config = function (el, initialized) {
+        if (initialized) {
+          grice.ChartAreaComponent.cleanCharts(el, this.model.type());
+        }
+
+        this.renderChart(el);
+      }.bind(this);
+    },
+    cleanCharts: function (el, type) {
+      var container = d3.select(el);
+
+      if (type !== grice.CHART_TYPES.SCATTER) {
+        container.selectAll('svg.scatter').data([]).exit().remove();
+      }
+
+      if (type !== grice.CHART_TYPES.BOX) {
+        container.selectAll('svg.box').data([]).exit().remove();
+      }
     },
     view: function (c) {
-      var config = grice.ChartAreaComponent.config(c);
-      return m('div.svg-container.u-full-width', {config: config});
+      var type = c.model.type();
+      return m('div.chart-container.u-full-width', {key: type, config: c.config});
     }
   };
 
-  grice.ChartComponent = {
-    controller: function () {
-      var me = this;
-      this.table = grice._table;
-      this.columns = grice._columns;
-      this.queryParams = grice.parseQueryParams();
-      var x = grice.findColumn(this.columns, this.queryParams.x);
-      var y = grice.findColumn(this.columns, this.queryParams.y);
-      this.x = m.prop(x);
-      this.y = m.prop(y);
-      this.rows = m.prop(null);
-      this.loading = m.prop(true);
+  grice.createChartComponent = function (model) {
+    return {
+      controller: function () {
+        var me = this;
+        this.loading = m.prop(true);
+        this.model = model;
 
-      var loadData = function () {
-        m.request({
-          // TODO: make perPage -1 so we get all rows.
-          url: grice.generateTableQueryUrl(me.table.name, null, 50, me.queryParams)
-        }).then(function (data) {
-          me.loading(false);
-          me.rows(data.rows);
-        });
-      };
+        var loadData = function () {
+          m.request({
+            url: grice.generateTableQueryUrl(model.table.name, null, -1, model.queryParams)
+          }).then(function (data) {
+            me.loading(false);
+            model.rows(data.rows);
+          });
+        };
 
-      // TODO: I don't like this hack.
-      // Have to do this setTimeout hack so mithril doesn't prevent the component from rendering without completing the
-      // request.
-      setTimeout(loadData, 0);
-    },
-    view: function (c) {
-      // TODO: allow user to switch to data view without navigating back to table page.
-      return m('div.chart', [
-        m('h4', 'Chart: ' + c.table.name),
-        m(grice.ChartControlsComponent, c.table, c.columns, c.x, c.y),
-        m(grice.ChartAreaComponent, c.table, c.x, c.y, c.rows, c.loading)
-      ]);
-    }
+        // TODO: I don't like this hack.
+        // Have to do this setTimeout hack so mithril doesn't prevent the component from rendering without completing the
+        // request.
+        setTimeout(loadData, 0);
+      },
+      view: function (c) {
+        // TODO: handle loading state.
+        return m('div.chart', [
+          m('h4', 'Chart: ' + c.model.table.name),
+          m(grice.ChartControlsComponent, c.model),
+          m(grice.ChartAreaComponent, c.model)
+        ]);
+      }
+    };
   };
 })();

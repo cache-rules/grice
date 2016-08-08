@@ -1,109 +1,111 @@
 (function () {
-  var cleanData = function () {};
-
-  var handleDots = function (el, x, y) {
-    el.attr('cx', x).attr('cy', y);
-  };
-
-  grice.scatterPlot = function (el, c) {
+  grice.ScatterRenderer = function (model) {
+    var width = 1000;
+    var height = 625;
     var margin = {
       top: 25,
       right: 25,
       bottom: 50,
-      left: 60
+      left: 80
     };
-    var width = el.offsetWidth;
-    var height = width * (10/16);
-    var xMin, xMax, yMin, yMax;
-    var xScale = d3.scaleLinear().range([margin.left, width - margin.right]);
-    var yScale = d3.scaleLinear().range([height - margin.bottom, margin.top]);
-    var xGetter = grice.makeGetter(c.x().table + '.' + c.x().name);
-    var yGetter = grice.makeGetter(c.y().table + '.' + c.y().name);
-    var xMap = function (d) { return xScale(xGetter(d)); };
-    var yMap = function (d) { return yScale(yGetter(d)); };
+    var xScale = d3.scaleLinear();
+    var yScale = d3.scaleLinear();
     var xAxis = d3.axisBottom(xScale);
     var yAxis = d3.axisLeft(yScale);
-    var data = c.rows().filter(function (row) {
-      var x = xGetter(row);
-      var y = yGetter((row));
-      var xValid = grice.isValid(x);
-      var yValid = grice.isValid(y);
 
-      if (xValid) {
-        if (xMin == null || x < xMin) {
-          xMin = x;
-        }
+    this.width = function (value) {
+      return width;
+    }.bind(this);
 
-        if (xMax == null || x > xMax) {
-          xMax = x;
-        }
+    this.height = function (value) {
+      return height;
+    }.bind(this);
+
+    this.marginTop = function (value) {
+      if (arguments.length > 0) {
+        this.margin.top = value;
+        return this;
       }
 
-      if (yValid) {
-        if (yMin == null || y < yMin) {
-          yMin = y;
-        }
+      return margin.top;
+    }.bind(this);
 
-        if (yMax == null || y > yMax) {
-          yMax = y;
-        }
+    this.marginRight = function (value) {
+      if (arguments.length > 0) {
+        this.margin.right = value;
+        return this;
       }
 
-      return xValid && yValid
-    });
+      return margin.right;
+    }.bind(this);
 
-    // Don't want dots overlapping axis, so add buffer to data domain.
-    // TODO: buffer should probably change in size based on range of values.
-    xScale.domain([xMin - 1, xMax + 1]);
-    yScale.domain([yMin - 1, yMax + 1]);
+    this.marginBottom = function (value) {
+      if (arguments.length > 0) {
+        this.margin.bottom = value;
+        return this;
+      }
 
-    var renderScatter = function (svg) {
-      svg.each(function (d) {
-        var svgEl = d3.select(this);
-        var dots = svgEl.selectAll('.dot').data(d);
-        var newDots = dots.enter().append('circle').attr('class', 'dot').style('fill', '#000').attr('r', 3.5);
-        handleDots(newDots, xMap, yMap);
-        handleDots(dots, xMap, yMap);
-        dots.exit().remove();
+      return margin.bottom;
+    }.bind(this);
 
-        var xAxisEl = svg.selectAll('g.x-axis').data([1]);
-        xAxisEl.enter().append('g').attr('class', 'x-axis').call(xAxis)
-            .attr("transform", "translate(0," + (height - margin.bottom) + ")");
-        xAxisEl.call(xAxis);
+    this.marginLeft = function (value) {
+      if (arguments.length > 0) {
+        this.margin.left = value;
+        return this;
+      }
 
-        var yAxisEl = svg.selectAll('g.y-axis').data([1]);
-        yAxisEl.enter().append('g').attr('class', 'y-axis').call(yAxis)
-            .attr("transform", "translate(" + margin.left + ",0)");
-        yAxisEl.call(yAxis);
-      });
+      return margin.left;
+    }.bind(this);
+
+    this.margin = {
+      top: this.marginTop,
+      right: this.marginRight,
+      bottom: this.marginBottom,
+      left: this.marginLeft
     };
 
-    var svgContainer = d3.select(el);
-    var svg = svgContainer.selectAll('svg').data([data]);
+    this.render = function (el) {
+      width = el.offsetWidth;
+      height = width * (10/16);
+      var chartContainer = d3.select(el);
+      var scatterData = model.data();
+      var data = scatterData.data;
+      var xMap = function (d) { return xScale(model.xGetter(d)); };
+      var yMap = function (d) { return yScale(model.yGetter(d)); };
 
-    svg.exit().remove();
+      xScale.domain(scatterData.xDomain).range([margin.left, width - margin.right]);
+      yScale.domain(scatterData.yDomain).range([height - margin.bottom, margin.top]);
 
-    svg.enter().append('svg')
-        .attr('class', 'scatter-plot')
-        .attr('width', width)
-        .attr('height', height)
-        .call(renderScatter);
+      var svg = chartContainer.selectAll('svg.scatter').data([data]);
+      var newSvg = svg.enter().append('svg').attr('class', 'scatter');
+      svg.exit().remove();
 
-    svg.attr('class', 'scatter-plot')
-        .attr('width', width)
-        .attr('height', height)
-        .call(renderScatter);
-  };
+      newSvg.attr('width', width).attr('height', height);
+      svg.attr('width', width).attr('height', height);
 
-  grice.ScatterPlotComponent = {
-    controller: function () {
+      var renderPlot = function (data) {
+        var svgSel = d3.select(this);
+        var xAxisEl = svgSel.selectAll('g.x-axis').data([1]);
+        var newXAxisEl = xAxisEl.enter().append('g').attr('class', 'x-axis');
 
-    },
-    config: function () {
+        xAxisEl.attr("transform", "translate(0," + (height - margin.bottom) + ")").call(xAxis);
+        newXAxisEl.attr("transform", "translate(0," + (height - margin.bottom) + ")").call(xAxis);
 
-    },
-    view: function (c) {
+        var yAxisEl = svgSel.selectAll('g.y-axis').data([1]);
+        var newYAxisEl = yAxisEl.enter().append('g').attr('class', 'y-axis');
 
-    }
+        yAxisEl.attr("transform", "translate(" + margin.left + ",0)").call(yAxis);
+        newYAxisEl.attr("transform", "translate(" + margin.left + ",0)").call(yAxis);
+
+        var dots = svgSel.selectAll('circle.dot').data(data);
+
+        dots.enter().append('circle').attr('class', 'dot').attr('r', 3.5).attr('cx', xMap).attr('cy', yMap);
+        dots.attr('cx', xMap).attr('cy', yMap);
+        dots.exit().remove();
+      };
+
+      newSvg.each(renderPlot);
+      svg.each(renderPlot);
+    };
   };
 })();

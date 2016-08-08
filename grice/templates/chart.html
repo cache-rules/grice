@@ -10,10 +10,12 @@
     <script src="/assets/src/js/components/table_component.js"></script>
     <script src="/assets/src/js/components/scatter_plot_component.js"></script>
     <script src="/assets/src/js/components/box_plot_component.js"></script>
+    <script src="/assets/src/js/models/chart_model.js"></script>
     <script src="/assets/src/js/components/chart_component.js"></script>
     <script>
         grice._table = {{ table|tojson }};
-        grice._columns = {{ columns|tojson }}
-        m.mount(document.querySelector('.gza'), grice.ChartComponent);
+        grice._columns = {{ columns|tojson }};
+        var model = new grice.ChartModel(grice._table, grice._columns, grice.parseQueryParams());
+        m.mount(document.querySelector('.gza'), grice.createChartComponent(model));
     </script>
 {% endblock %}

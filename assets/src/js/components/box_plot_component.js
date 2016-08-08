@@ -1,36 +1,45 @@
 (function () {
-  var handleVerticalLines = function (el, scale, width, margin) {
-    var x = (width / 2) + margin.left;
+  var handleVerticalLines = function (el, scale, width, margin, padding) {
+    var x = (width / 2) + margin.left + padding;
 
     el.attr('x1', x)
         .attr('y1', function(d) { return scale(d.bottom); })
         .attr('x2', x)
-        .attr('y2', function(d) { return scale(d.top); });
+        .attr('y2', function(d) { return scale(d.top); })
+        .attr('stroke', '#000')
+        .attr('stroke-width', 1);
   };
 
-  var handleRects = function (el, scale, width, margin) {
-    el.attr('x', margin.left)
+  var handleRects = function (el, scale, width, margin, padding) {
+    el.attr('x', margin.left + padding)
         .attr('y', function(d) { return scale(d.top); })
         .attr('width', width)
         .attr('height', function (d) { return Math.abs(scale(d.bottom) - scale(d.top)); })
-        .attr('height', function(d) { return scale(d.bottom) - scale(d.top); });
+        .attr('height', function(d) { return scale(d.bottom) - scale(d.top); })
+        .attr('fill', '#fff')
+        .attr('stroke', '#000')
+        .attr('stroke-width', 1);
   };
 
-  var handleMedianLines = function (el, scale, width, margin) {
-    el.attr('x1', margin.left)
-        .attr('x2', width + margin.left)
+  var handleMedianLines = function (el, scale, width, margin, padding) {
+    el.attr('x1', margin.left + padding)
+        .attr('x2', width + margin.left + padding)
         .attr('y1', scale)
-        .attr('y2', scale);
+        .attr('y2', scale)
+        .attr('stroke', '#000')
+        .attr('stroke-width', 1);
   };
 
-  var handleWhiskers = function (el, scale, width, margin) {
+  var handleWhiskers = function (el, scale, width, margin, padding) {
     var x1 = (width / 2) - (width / 4) + margin.left;
     var x2 = (width / 2) + (width / 4) + margin.left;
 
-    el.attr('x1', x1)
-        .attr('x2', x2)
+    el.attr('x1', x1 + padding)
+        .attr('x2', x2 + padding)
         .attr('y1', scale)
-        .attr('y2', scale);
+        .attr('y2', scale)
+        .attr('stroke', '#000')
+        .attr('stroke-width', 1);
   };
 
   var handleLabels = function (el, scale, width, margin) {
@@ -43,143 +52,121 @@
         .text(function (d) {return d});
   };
 
-  var boxRenderer = function () {
-    var width = 100;
-    var height = 200;
-    var domain = [];
-    var scale = d3.scaleLinear();
-    var margin = {
-      top: 25,
-      right: 25,
-      bottom: 50,
-      left: 35
-    };
-
-    var renderer = function (g) {
-      var boxWidth = width - margin.left - margin.right;
-      scale.range([height - margin.bottom, margin.top]);
-
-      g.each(function (d) {
-        var boxGroup = d3.select(this);
-        var verticalLines = boxGroup.selectAll('line.center').data([d.whiskers]);
-        var newVerticalLines = verticalLines.enter().insert('line', 'rect')
-            .attr('class', 'center')
-            .attr('stroke', '#000')
-            .attr('stroke-width', 1);
-
-        handleVerticalLines(newVerticalLines, scale, boxWidth, margin);
-        handleVerticalLines(verticalLines, scale, boxWidth, margin);
-
-        var rects = boxGroup.selectAll('rect.box').data([d.box]);
-        var newRects = rects.enter().append('rect').attr('class', 'box')
-            .attr('fill', '#fff')
-            .attr('stroke', '#000')
-            .attr('stroke-width', 1);
-
-        handleRects(newRects, scale, boxWidth, margin);
-        handleRects(rects, scale, boxWidth, margin);
-
-        var medianLines = boxGroup.selectAll('line.median').data([d.box.middle]);
-        var newMedianLines = medianLines.enter().append('line')
-            .attr('class', 'median')
-            .attr('stroke', '#000')
-            .attr('stroke-width', 1);
-
-        handleMedianLines(newMedianLines, scale, boxWidth, margin);
-        handleMedianLines(medianLines, scale, boxWidth, margin);
-
-        var whiskers = boxGroup.selectAll('line.whisker').data([d.whiskers.top, d.whiskers.bottom]);
-        var newWhiskers = whiskers.enter().append('line')
-            .attr('class', 'whisker')
-            .attr('stroke', '#000')
-            .attr('stroke-width', 1);
-
-        handleWhiskers(newWhiskers, scale, boxWidth, margin);
-        handleWhiskers(whiskers, scale, boxWidth, margin);
-
-        var labels = boxGroup.selectAll('text.label').data([d.name]);
-        var newLabels = labels.enter().append('text')
-            .attr('class', 'label');
-
-        handleLabels(newLabels, scale, boxWidth, margin);
-        handleLabels(labels, scale, boxWidth, margin);
-
-      });
-    };
-
-    renderer.domain = function (d) {
-      if (!arguments.length) {
-        return domain
-      }
-      domain = d;
-      scale.domain(d);
-      return renderer;
-    };
-
-    renderer.width = function (w) {
-      if (!arguments.length) {
-        return width;
-      }
-      width = w;
-      return renderer;
-    };
-
-    renderer.height = function (h) {
-      if (!arguments.length) {
-        return height;
-      }
-      height = h;
-      return renderer;
-    };
-
-    renderer.scale = function () {
-      return scale;
-    };
-
-    return renderer;
-  };
-
-  grice.boxPlot = function (el, c) {
-    // TODO: add outliers (points above or below whiskers).
-    // TODO: support grouping by a discrete column, then we can have an x-axis.
-    var svgContainer = d3.select(el);
-    var x = c.x();
-    var y = c.y();
-    var xGetter;
-    var yGetter = grice.makeGetter(y.table + '.' + y.name);
-    var rows = c.rows().filter(function (row) {
-      return grice.isValid(yGetter(row));
-    }).sort(function (a, b) {
-      return grice.sortData(yGetter(a), yGetter(b));
-    });
-
-    if (x) {
-      xGetter = grice.makeGetter(x.table + '.' + x.name);
-    }
-
-    var data = grice.convertBoxPlotData(c.table, rows, xGetter, yGetter);
+  grice.BoxRenderer = function (model) {
     var width = 150;
-    var height = 250;
-    var renderer = boxRenderer()
-        .width(width)
-        .height(height)
-        .domain([yGetter(rows[0]), yGetter(rows[rows.length -1])]);
-    var svg = svgContainer.selectAll('svg').data(data);
-    svg.enter().append("svg")
-        .attr("class", "box-plot")
-        .attr("width", width)
-        .attr("height", height)
-        .call(renderer);
-    svg.call(renderer);
-    svg.exit().remove();
-  };
+    var height = 300;
+    var margin = {
+      top: 15,
+      right: 15,
+      bottom: 50,
+      left: 15
+    };
+    var boxPadding = 0;
+    var yScale = d3.scaleLinear();
+    var yAxis = d3.axisLeft(yScale);
 
-  grice.BoxPlotComponent = {
-    controller: function () {
+    this.width = function (value) {
+      return width;
+    }.bind(this);
 
-    },
-    view: function () {
+    this.height = function (value) {
+      return height;
+    }.bind(this);
 
-    }
+    this.marginTop = function (value) {
+      if (arguments.length > 0) {
+        this.margin.top = value;
+        return this;
+      }
+
+      return margin.top;
+    }.bind(this);
+
+    this.marginRight = function (value) {
+      if (arguments.length > 0) {
+        this.margin.right = value;
+        return this;
+      }
+
+      return margin.right;
+    }.bind(this);
+
+    this.marginBottom = function (value) {
+      if (arguments.length > 0) {
+        this.margin.bottom = value;
+        return this;
+      }
+
+      return margin.bottom;
+    }.bind(this);
+
+    this.marginLeft = function (value) {
+      if (arguments.length > 0) {
+        this.margin.left = value;
+        return this;
+      }
+
+      return margin.left;
+    }.bind(this);
+
+    this.margin = {
+      top: this.marginTop,
+      right: this.marginRight,
+      bottom: this.marginBottom,
+      left: this.marginLeft
+    };
+
+    var renderPlot = function (d) {
+      var boxWidth = width - margin.left - margin.right - boxPadding;
+      var svgEl = d3.select(this).attr('width', width).attr('height', height);
+      var centerLine = svgEl.selectAll('line.center').data([d.whiskers]);
+      var newCenterLine = centerLine.enter().append('line').attr('class', 'center');
+
+      handleVerticalLines(centerLine, yScale, boxWidth, margin, boxPadding);
+      handleVerticalLines(newCenterLine, yScale, boxWidth, margin, boxPadding);
+
+      var rects = svgEl.selectAll('rect.box').data([d.box]);
+      var newRects = rects.enter().append('rect').attr('class', 'box');
+
+      handleRects(newRects, yScale, boxWidth, margin, boxPadding);
+      handleRects(rects, yScale, boxWidth, margin, boxPadding);
+
+      var medianLines = svgEl.selectAll('line.median').data([d.box.middle]);
+      var newMedianLines = medianLines.enter().append('line').attr('class', 'median');
+
+      handleMedianLines(newMedianLines, yScale, boxWidth, margin, boxPadding);
+      handleMedianLines(medianLines, yScale, boxWidth, margin, boxPadding);
+
+      var whiskers = svgEl.selectAll('line.whisker').data([d.whiskers.top, d.whiskers.bottom]);
+      var newWhiskers = whiskers.enter().append('line').attr('class', 'whisker');
+
+      handleWhiskers(newWhiskers, yScale, boxWidth, margin, boxPadding);
+      handleWhiskers(whiskers, yScale, boxWidth, margin, boxPadding);
+
+      var labels = svgEl.selectAll('text.label').data([d.name]);
+      var newLabels = labels.enter().append('text').attr('class', 'label');
+
+      handleLabels(newLabels, yScale, boxWidth, margin, boxPadding);
+      handleLabels(labels, yScale, boxWidth, margin, boxPadding);
+
+      // TODO: find a way to render the axis scale.
+
+      //var axis = svgEl.selectAll('g.y-axis').data([1]);
+      //var newAxis = axis.enter().append('g').attr('class', 'y-axis');
+
+      //axis.attr("transform", "translate(" + margin.left + ",0)").call(yAxis);
+      //newAxis.attr("transform", "translate(" + margin.left + ",0)").call(yAxis);
+    };
+
+    this.render = function (el) {
+      var data = model.data();
+      yScale.domain([data.min, data.max]);
+      yScale.range([height - margin.bottom, margin.top]);
+
+      var svg = d3.select(el).selectAll('svg.box').data(data.rows);
+      svg.exit().remove();
+      svg.enter().append('svg').attr('class', 'box').each(renderPlot);
+      svg.each(renderPlot);
+    };
   };
 })();

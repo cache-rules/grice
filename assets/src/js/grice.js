@@ -41,6 +41,41 @@ grice = (function () {
     return 0;
   };
 
+  grice.convertScatterPlotData = function (data, xGetter, yGetter) {
+    var xMin = null, xMax = null, yMin = null, yMax = null;
+
+    data = data.filter(function(datum) {
+      var x = xGetter(datum);
+      var y = yGetter(datum);
+      var xValid = grice.isValid(x);
+      var yValid = grice.isValid(y);
+
+      if (xValid) {
+        if (xMin == null || x < xMin) {
+          xMin = x;
+        }
+
+        if (xMax == null || x > xMax) {
+          xMax = x;
+        }
+      }
+
+      if (yValid) {
+        if (yMin == null || y < yMin) {
+          yMin = y;
+        }
+
+        if (yMax == null || y > yMax) {
+          yMax = y;
+        }
+      }
+
+      return xValid && yValid;
+    });
+
+    return {data: data, xDomain: [xMin, xMax], yDomain: [yMin, yMax]};
+  };
+
   grice.findColumn = function (columns, columnName) {
     if (columnName) {
       return columns.find(function (column) {
@@ -131,16 +166,41 @@ grice = (function () {
      * Filters groups rows if needed, then converts each group to box plot stats. Assumes rows are sorted.
      */
     var groupedRows;
+    var data = {
+      rows: [],
+      min: null,
+      max: null
+    };
+
+    rows = rows.filter(function (row) {
+      var value = getValue(row);
+      var isValid = grice.isValid(value);
+
+      if (isValid) {
+        if (data.min == null || value < data.min) {
+          data.min = value;
+        }
+
+        if (data.max == null || value > data.max) {
+          data.max = value;
+        }
+      }
+
+      return isValid;
+    }).sort(function (a, b) {
+      return grice.sortData(getValue(a), getValue(b));
+    });
 
     if (getGroup) {
       groupedRows = grice.groupData(rows, getGroup, getValue);
-
-      return Object.keys(groupedRows).map(function (group) {
+      data.rows = Object.keys(groupedRows).map(function (group) {
         return grice.boxPlotStats(groupedRows[group], group);
       });
+    } else {
+      data.rows = [grice.boxPlotStats(rows.map(getValue), table.name)];
     }
 
-    return [grice.boxPlotStats(rows.map(getValue), table.name)];
+    return data;
   };
 
   grice.changeHandler = function (attr, scope) {
@@ -223,6 +283,9 @@ grice = (function () {
         break;
       case "y":
         params.y = parseColumn(value);
+        break;
+      case "color":
+        params.color = parseColumn(value);
         break;
       case "page":
         break;
