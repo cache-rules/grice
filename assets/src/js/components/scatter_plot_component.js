@@ -70,8 +70,11 @@
       var chartContainer = d3.select(el);
       var scatterData = model.data();
       var data = scatterData.data;
+      // Reset the color scale on every render in order to get a fresh domain for the legend.
+      var colorScale = d3.scaleOrdinal().range(d3.schemeCategory10);
       var xMap = function (d) { return xScale(model.xGetter(d)); };
       var yMap = function (d) { return yScale(model.yGetter(d)); };
+      var colorMap = function (d) { return colorScale(model.colorGetter(d)); };
 
       xScale.domain(scatterData.xDomain).range([margin.left, width - margin.right]);
       yScale.domain(scatterData.yDomain).range([height - margin.bottom, margin.top]);
@@ -98,9 +101,20 @@
         newYAxisEl.attr("transform", "translate(" + margin.left + ",0)").call(yAxis);
 
         var dots = svgSel.selectAll('circle.dot').data(data);
+        var newDots = dots.enter().append('circle').attr('class', 'dot').attr('r', 3.5);
 
-        dots.enter().append('circle').attr('class', 'dot').attr('r', 3.5).attr('cx', xMap).attr('cy', yMap);
         dots.attr('cx', xMap).attr('cy', yMap);
+        newDots.attr('cx', xMap).attr('cy', yMap);
+
+        if (model.color()) {
+          dots.attr('fill', colorMap);
+          newDots.attr('fill', colorMap);
+          // TODO: render legend.
+        } else {
+          dots.attr('fill', '#000');
+          newDots.attr('fill', '#000');
+        }
+
         dots.exit().remove();
       };
 
