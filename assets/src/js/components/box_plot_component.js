@@ -44,7 +44,7 @@
 
   var handleLabels = function (el, scale, width, margin) {
     var x = margin.left;
-    var y = scale(0) + (margin.bottom - 12);
+    var y = scale.range()[0] + margin.bottom - 12;
 
     el.attr('x', x)
         .attr('y', y)
