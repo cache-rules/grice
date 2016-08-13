@@ -28,10 +28,19 @@
         return this._x();
       }
 
-      this.xGetter = function (value) {
-        return value[column.table + '.' + column.name];
-      };
-      return this._x(column);
+      this._x(column);
+
+      if (column) {
+        this.xGetter = function (value) {
+          return value[column.table + '.' + column.name];
+        };
+      } else {
+        this.xGetter = function () {
+          return this.table.name;
+        }.bind(this);
+      }
+
+      return column;
     }.bind(this);
 
     this.x(this.columnMap[queryParams.x]);
