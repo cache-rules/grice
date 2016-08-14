@@ -4,3 +4,7 @@ class ConfigurationError(Exception):
 
 class NotFoundError(Exception):
     pass
+
+
+class JoinError(Exception):
+    pass

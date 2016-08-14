@@ -1,10 +1,10 @@
 from collections import OrderedDict
 
 from grice.db_service import DBService, DEFAULT_PAGE, DEFAULT_PER_PAGE, ColumnFilter, ColumnSort, SORT_DIRECTIONS, \
-    ColumnPair, TableJoin, column_to_dict
+    ColumnPair, TableJoin
 from flask import Flask, jsonify, render_template, request
 
-from grice.errors import NotFoundError
+from grice.errors import NotFoundError, JoinError
 
 
 def parse_pagination(page, per_page):
@@ -219,7 +219,10 @@ class DBController:
         except NotFoundError as e:
             return jsonify(success=False, error=str(e)), 404
 
-        rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
+        try:
+            rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
+        except JoinError as e:
+            return jsonify(error=str(e)), 400
 
         return jsonify(table=table_info, rows=rows, columns=columns)
 

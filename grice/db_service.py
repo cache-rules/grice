@@ -2,7 +2,7 @@ from collections import namedtuple
 
 from sqlalchemy.sql import Select
 
-from grice.errors import ConfigurationError, NotFoundError
+from grice.errors import ConfigurationError, NotFoundError, JoinError
 from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_, asc, desc, and_
 from sqlalchemy import engine
 from sqlalchemy.engine import reflection
@@ -408,8 +408,8 @@ class DBService:
         if table is None:
             raise NotFoundError('Table "{}" does exist'.format(table_name))
 
-        if join is not None and not join_table is not None:
-            raise ValueError('Invalid join. Table with name "{}" does not exist.'.format(join.table_name))
+        if join is not None and join_table is None:
+            raise JoinError('Invalid join. Table with name "{}" does not exist.'.format(join.table_name))
 
         columns = names_to_columns(column_names, table, join_table)
 
