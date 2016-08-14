@@ -55,7 +55,8 @@
   };
 
   grice.ColumnHeader = {
-    controller: function (column, queryParams, showChart) {
+    controller: function (tableName, column, queryParams, showChart) {
+      this.tableName = tableName;
       this.column = column;
       this.queryParams = queryParams;
       this.showChart = showChart;
@@ -63,8 +64,53 @@
     view: function (c) {
       var colType = c.column.type;
       var menuItems = [];
+      var sortIdx = -1;
+      var sort = c.queryParams.sorts.find(function (sort, idx) {
+        var sortCol = sort.split(',')[0];
+        var found = c.column.name == sortCol || (c.column.table + '.' + c.column.name) == sortCol;
 
-      if (colType == 'FLOAT' || colType == 'INTEGER' || colType == 'REAL' || colType == 'NUMERIC') {
+        if (found) {
+          sortIdx = idx;
+        }
+
+        return found;
+      });
+
+      var removeSort = function () {
+        if (sortIdx > -1) {
+          c.queryParams.sorts.splice(sortIdx, 1);
+        }
+      };
+
+      var applySort = function (type) {
+        removeSort();
+        var sort = c.column.table + '.' + c.column.name + ',' + type;
+        c.queryParams.sorts.push(sort);
+        window.location = grice.generateTableUrl(c.tableName, c.queryParams.page, c.queryParams.perPage, c.queryParams);
+      };
+
+      var sortAscending = function () {
+        applySort('asc');
+      };
+
+      var sortDescending = function () {
+        applySort('desc');
+      };
+
+      var clearSort = function () {
+        removeSort();
+        window.location = grice.generateTableUrl(c.tableName, c.queryParams.page, c.queryParams.perPage, c.queryParams);
+      };
+
+      if (sort) {
+        menuItems.push(m('div.menu-item', {onclick: clearSort}, 'Clear sort'));
+      }
+
+      menuItems.push(m('div.menu-item', {onclick: sortAscending}, 'Sort ascending'));
+      menuItems.push(m('div.menu-item', {onclick: sortDescending}, 'Sort descending'));
+      //menuItems.push(m('div.menu-item', {onclick: showFilterDialog}, 'Filter'));
+
+      if (grice.NUMERIC_COLUMNS.indexOf(colType) > -1) {
         var showChart = function () {
           c.showChart(c.column);
         };
@@ -94,7 +140,7 @@
     },
     view: function (c) {
       var headerCols = c.columns.map(function (col) {
-        return m(grice.ColumnHeader, col, c.queryParams, c.showChart);
+        return m(grice.ColumnHeader, c.table.name, col, c.queryParams, c.showChart);
       });
       var tableHeader = m('tr', headerCols);
       var tableBody;
