@@ -323,12 +323,12 @@ grice = (function () {
     var url = '';
     var separator = '';
 
-    if (page !== null) {
+    if (page !== undefined && page !== null) {
       url += separator + 'page=' + page;
       separator = '&';
     }
 
-    if (perPage !== null) {
+    if (perPage !== undefined && perPage !== null) {
       url += separator + 'perPage=' + perPage;
       separator = '&';
     }
