@@ -416,7 +416,7 @@ class DBService:
         if len(columns) == 0:
             return [], []
 
-        query = select(columns)
+        query = select(columns).apply_labels()
 
         if per_page > -1:
             query = query.limit(per_page).offset(page * per_page)
@@ -438,7 +438,8 @@ class DBService:
 
                 for column in columns:
                     full_column_name = column.table.name + '.' + column.name
-                    data[full_column_name] = row[column]
+                    column_label = column.table.name + '_' + column.name
+                    data[full_column_name] = row[column_label]
 
                 rows.append(data)
 
