@@ -3,8 +3,8 @@ grice = (function () {
 
   var grice = {};
 
-  grice.NUMERIC_COLUMNS = ['FLOAT', 'INTEGER' , 'REAL', 'NUMERIC', 'SMALLINT'];
-  grice.DISCRETE_COLUMNS = ['CHAR', 'TEXT', 'BOOLEAN'];
+  grice.NUMERIC_COLUMNS = ['DOUBLE_PRECISION', 'FLOAT', 'INTEGER' , 'REAL', 'NUMERIC', 'SMALLINT'];
+  grice.DISCRETE_COLUMNS = ['CHAR', 'VARCHAR', 'TEXT', 'BOOLEAN'];
 
   grice.isNumericColumn = function (column) {
     if (column) {
