@@ -3,8 +3,24 @@ grice = (function () {
 
   var grice = {};
 
+  grice.FILTER_TYPES = {
+    'lt': 'less than',
+    'lte': 'less than or equal to',
+    'eq': 'equal to',
+    'neq': 'not equal to',
+    'gt': 'greater than',
+    'gte': 'greater than or equal to',
+    'in': 'in (example: a;b;c)',
+    'not_in': 'not in (example: a;b;c)',
+    'bt': 'between (example: 65;95)',
+    'nbt': 'not between (example: 65;95)'
+  };
   grice.NUMERIC_COLUMNS = ['DOUBLE_PRECISION', 'FLOAT', 'INTEGER' , 'REAL', 'NUMERIC', 'SMALLINT'];
   grice.DISCRETE_COLUMNS = ['CHAR', 'VARCHAR', 'TEXT', 'BOOLEAN'];
+
+  grice.shallowCopy = function (arr) {
+    return arr.map(function (i) {return i});
+  };
 
   grice.isNumericColumn = function (column) {
     if (column) {
@@ -224,29 +240,90 @@ grice = (function () {
     return JSON.stringify(jsonData);
   };
 
+  // Mithril: To maintain the identities of DOM elements, you need to add a key property to the direct children of the
+  // array that you're planning to modify.
+  // I tried putting the key on the DOM elements, but that is not good enough apparently.
+  // http://mithril.js.org/mithril.html#dealing-with-focus
+  var columnKey = 0;
+
+  grice.ColumnFilter = function (column, type, value) {
+    this.column = m.prop(column);
+    this.type = m.prop(type);
+    this.value = m.prop(value);
+    this.key = columnKey++;
+    this.json = function () {
+      return {
+        column: this.column(),
+        type: this.type(),
+        value: this.value()
+      }
+    }.bind(this);
+    this.queryParam = function () {
+      return this.column() + ',' + this.type() + ',' + this.value();
+    }.bind(this);
+  };
+
+  var parseFilter = function (params, type, value) {
+    // Format: column_name,filter_type,value
+    var parts = value.split(',');
+    var column = parts[0], filterType = parts[1], filterValue = parts[2];
+
+    if (!params.filters.hasOwnProperty(column)) {
+      params.filters[column] = [];
+    }
+
+    params.filters[column].push(new grice.ColumnFilter(column, filterType, filterValue))
+  };
+
   // TODO: make the parse functions below create model objects.
 
-  var parseFilter = function (filter) {
-    // Format: column_name,filter_type,value
-    return filter;
-  };
-
-  var parseSort = function (sort) {
+  var parseSort = function (params, type, value) {
     // Format: column_name,direction
-    return sort;
+    var parts = value.split(',');
+
+    return params.sorts.push({
+      column: parts[0],
+      direction: parts[1]
+    });
   };
 
-  var parseJoin = function (join) {
+  var parseJoin = function (params, type, value) {
     // Format: table_name,from_col:to_col;from_col:to_col
-    return join;
+    if (params.join === null) {
+      params.join = value;
+    }
   };
 
-  var parseColumns = function (columnNames) {
-    return columnNames.split(',');
+  var parseOuterJoin = function (params, type, value) {
+    // Format: table_name,from_col:to_col;from_col:to_col
+    if (params.outerjoin === null) {
+      params.outerjoin = value;
+    }
   };
 
-  var parseColumn = function (columnName) {
-    return columnName
+  var parseColumns = function (params, type, value) {
+    params.columns = value.split(',');
+  };
+
+  var parseColumn = function (params, type, value) {
+    params[type] = value;
+  };
+
+  var noop = function () {
+    return null
+  };
+
+  var paramTypes = {
+    filter: parseFilter,
+    sort: parseSort,
+    join: parseJoin,
+    outerjoin: parseOuterJoin,
+    cols: parseColumns,
+    x: parseColumn,
+    y: parseColumn,
+    color: parseColumn,
+    page: noop,
+    perPage: noop
   };
 
   var parseParam = function (param, params) {
@@ -254,45 +331,10 @@ grice = (function () {
     var type = items[0];
     var value = items[1];
 
-    // TODO: not a fan of this switch statement. Find a way to simplify this.
-
-    switch (type) {
-      case "filter":
-        params.filters.push(parseFilter(value));
-        break;
-      case "sort":
-        params.sorts.push(parseSort(value));
-        break;
-      case "join":
-        if (params.join === null || params.outerjoin === null) {
-          params.join = parseJoin(value);
-        }
-        break;
-      case "outerjoin":
-        if (params.join === null || params.outerjoin === null) {
-          params.outerjoin = parseJoin(value);
-        }
-        break;
-      case "cols":
-        if (params.columns === null) {
-          params.columns = parseColumns(value);
-        }
-        break;
-      case "x":
-        params.x = parseColumn(value);
-        break;
-      case "y":
-        params.y = parseColumn(value);
-        break;
-      case "color":
-        params.color = parseColumn(value);
-        break;
-      case "page":
-        break;
-      case "perPage":
-        break;
-      default:
-        console.warn('Unrecognized query string value', type, value);
+    if (paramTypes.hasOwnProperty(type)) {
+      paramTypes[type](params, type, value);
+    } else {
+      console.warn('Unrecognized query string value', type, value);
     }
   };
 
@@ -306,11 +348,14 @@ grice = (function () {
 
   var defaultParams = function () {
     return {
-      filters: [],
+      filters: {},
       sorts: [],
       join: null,
       outerjoin: null,
-      columns: null
+      columns: null,
+      x: null,
+      y: null,
+      color: null
     };
   };
 
@@ -322,6 +367,7 @@ grice = (function () {
   grice.generateTableQueryString = function (page, perPage, queryParams) {
     var url = '';
     var separator = '';
+    var sorts;
 
     if (page !== undefined && page !== null) {
       url += separator + 'page=' + page;
@@ -344,18 +390,26 @@ grice = (function () {
     }
 
     if (queryParams.columns) {
-      url += separator + 'cols=' + queryParams.columns
+      url += separator + 'cols=' + queryParams.columns;
       separator = '&';
     }
 
-    if (queryParams.filters.length) {
-      console.log(queryParams.filters);
-      url += separator + 'filter=' + queryParams.filters.join('&filter=');
-      separator = '&';
+    if (queryParams.filters) {
+      Object.keys(queryParams.filters).forEach(function (col) {
+        var filters = queryParams.filters[col].map(function (f) { return f.queryParam() });
+
+        if (filters.length) {
+          url += separator + 'filter=' + filters.join('&filter=');
+          separator = '&';
+        }
+      });
     }
 
     if (queryParams.sorts.length) {
-      url += separator + 'sort=' + queryParams.sorts.join('&sort=');
+      sorts = queryParams.sorts.map(function (s) {
+        return s.column + ',' + s.direction;
+      });
+      url += separator + 'sort=' + sorts.join('&sort=');
     }
 
     if (url.length) {
