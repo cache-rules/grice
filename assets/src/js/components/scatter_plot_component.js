@@ -66,7 +66,7 @@
 
     this.render = function (el) {
       width = el.offsetWidth;
-      height = width * (10/16);
+      height = Math.min(580, width * (10/16));
       var chartContainer = d3.select(el);
       var scatterData = model.data();
       var data = scatterData.data;
