@@ -223,9 +223,12 @@
         }
       };
 
-      var applySort = function (type) {
+      var applySort = function (direction) {
         removeSort();
-        var sort = c.column.table + '.' + c.column.name + ',' + type;
+        var sort = {
+          column: c.column.table + '.' + c.column.name,
+          direction: direction
+        };
         c.queryParams.sorts.push(sort);
         window.location = grice.generateTableUrl(c.tableName, c.queryParams.page, c.queryParams.perPage, c.queryParams);
       };
