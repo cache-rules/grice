@@ -1,0 +1,6 @@
+Flask
+SQLAlchemy
+psycopg2
+waitress
+# mysqlclient
+# gunicorn

@@ -93,3 +93,5 @@ ENV/
 venv/
 
 config.ini
+
+.project
