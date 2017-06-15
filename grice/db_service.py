@@ -1,11 +1,13 @@
 from collections import namedtuple
+import urllib
 
-from sqlalchemy.sql import Select
-
-from grice.errors import ConfigurationError, NotFoundError, JoinError
 from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_, asc, desc, and_
 from sqlalchemy import engine
+from sqlalchemy.sql import Select
 from sqlalchemy.engine import reflection
+
+from grice.errors import ConfigurationError, NotFoundError, JoinError
+
 
 DEFAULT_PAGE = 0
 DEFAULT_PER_PAGE = 50
@@ -24,6 +26,7 @@ def init_database(db_config):
     :param db_config:
     :return: SqlAlchemy engine object.
     """
+    driver = db_config.get('driver', 'postgresql')
     try:
         db_args = {
             'username': db_config['username'],
@@ -32,11 +35,13 @@ def init_database(db_config):
             'port': db_config['port'],
             'database': db_config['database']
         }
+        if 'query' in db_config:
+            db_args['query'] = dict(urllib.parse.parse_qsl(db_config['query'], keep_blank_values=True))
     except KeyError:
         msg = '"username", "password", "host", "port", and "database" are required fields of database config'
         raise ConfigurationError(msg)
 
-    eng_url = engine.url.URL(db_config.get('engine', 'postgresql'), **db_args)
+    eng_url = engine.url.URL(driver, **db_args)
 
     return create_engine(eng_url)
 
