@@ -330,6 +330,26 @@ def apply_column_sorts(query, table: Table, join_table: Table, sorts: dict):
 
     return query
 
+def apply_column_groups(query, table: Table, join_table: Table, group_by: list):
+    """
+    Adds sorts to a query object.
+
+    :param query: A SQLAlchemy select object.
+    :param table: The Table we are joining from.
+    :param join_table: The Table we are joining to.
+    :param sorts: List of ColumnSort objects.
+    :return: A SQLAlchemy select object modified to with sorts.
+    """
+    for group in group_by:
+        column = table.columns.get(group, None)
+        if join_table is not None and not column:
+            column = join_table.columns.get(group, None)
+
+        if column is not None:
+            query = query.group_by(column)
+
+    return query
+
 
 def apply_join(query: Select, table: Table, join_table: Table, join: TableJoin):
     """
@@ -401,7 +421,7 @@ class DBService:
         return table_to_dict(table)
 
     def query_table(self, table_name, column_names: list=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
-                    filters: dict=None, sorts: dict=None, join: TableJoin=None):
+                    filters: dict=None, sorts: dict=None, join: TableJoin=None, group_by: list=None):
         table = self.meta.tables.get(table_name, None)
         join_table = None
 
@@ -421,6 +441,8 @@ class DBService:
         if len(columns) == 0:
             return [], []
 
+        # group_by_cols = names_to_columns(group_by, table, join_table) if group_by else None
+
         query = select(columns).apply_labels()
 
         if per_page > -1:
@@ -434,6 +456,9 @@ class DBService:
 
         if join is not None:
             query = apply_join(query, table, join_table, join)
+
+        if group_by is not None:
+            query = apply_column_groups(query, table, join_table, group_by)
 
         with self.db.connect() as conn:
             result = conn.execute(query)

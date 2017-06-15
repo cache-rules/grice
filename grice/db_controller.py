@@ -158,6 +158,23 @@ def parse_join(join_str, outer_join: bool):
     return TableJoin(table_name, column_pairs, outer_join)
 
 
+def parse_col_names(column_names):
+    """
+    This method takes a string of comma-seperated column names and returns a list of column names.
+
+    :param column_names: string
+    :return: column_names: list
+    """
+    if column_names:
+        columns_dict = OrderedDict()
+
+        for column_name in column_names.split(','):
+            columns_dict[column_name.strip()] = True
+
+        column_names = list(columns_dict.keys())
+
+    return column_names
+
 def parse_query_args(query_args):
     """
     This method takes the query string from the request and returns all of the items related to the query API.
@@ -169,17 +186,10 @@ def parse_query_args(query_args):
     filters = parse_filters(query_args.getlist('filter'))
     sorts = parse_sorts(query_args.getlist('sort'))
     join = parse_join(query_args.get('join'), False) or parse_join(query_args.get('outerjoin'), True)
-    column_names = query_args.get('cols', None)
+    column_names = parse_col_names(query_args.get('cols', None))
+    group_by = parse_col_names(query_args.get('group_by', None))
 
-    if column_names:
-        columns_dict = OrderedDict()
-
-        for column_name in column_names.split(','):
-            columns_dict[column_name.strip()] = True
-
-        column_names = list(columns_dict.keys())
-
-    return column_names, page, per_page, filters, sorts, join
+    return column_names, page, per_page, filters, sorts, join, group_by
 
 
 def table_not_found(name):
@@ -212,7 +222,7 @@ class DBController:
     table_api.methods = ['GET', 'POST']
 
     def query_api(self, name):
-        column_names, page, per_page, filters, sorts, join = parse_query_args(request.args)
+        column_names, page, per_page, filters, sorts, join, group_by = parse_query_args(request.args)
 
         try:
             table_info = self.db_service.get_table(name)
@@ -220,7 +230,7 @@ class DBController:
             return jsonify(success=False, error=str(e)), 404
 
         try:
-            rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
+            rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join, group_by)
         except JoinError as e:
             return jsonify(error=str(e)), 400
 
@@ -236,21 +246,21 @@ class DBController:
     tables_page.methods = ['GET']
 
     def table_page(self, name):
-        column_names, page, per_page, filters, sorts, join = parse_query_args(request.args)
+        column_names, page, per_page, filters, sorts, join, group_by = parse_query_args(request.args)
 
         try:
             table = self.db_service.get_table(name)
         except NotFoundError:
             return table_not_found(name)
 
-        rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join)
+        rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join, group_by)
         title = "{} - Grice".format(name)
 
         return render_template('table.html', title=title, table=table, rows=rows, columns=columns, page=page + 1,
                                per_page=per_page)
 
     def chart_page(self, name):
-        column_names, page, per_page, filters, sorts, join = parse_query_args(request.args)
+        column_names, page, per_page, filters, sorts, join, group_by = parse_query_args(request.args)
         join_table = None
 
         try:
