@@ -36,7 +36,7 @@ def init_database(db_config):
         msg = '"username", "password", "host", "port", and "database" are required fields of database config'
         raise ConfigurationError(msg)
 
-    eng_url = engine.url.URL('postgresql', **db_args)
+    eng_url = engine.url.URL(db_config.get('engine', 'postgresql'), **db_args)
 
     return create_engine(eng_url)
 
