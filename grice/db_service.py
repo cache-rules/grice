@@ -421,7 +421,7 @@ class DBService:
         return table_to_dict(table)
 
     def query_table(self, table_name, column_names: list=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
-                    filters: dict=None, sorts: dict=None, join: TableJoin=None, group_by: list=None):
+                    filters: dict=None, sorts: dict=None, join: TableJoin=None, group_by: list=None, format_as_list: bool=False):
         table = self.meta.tables.get(table_name, None)
         join_table = None
 
@@ -464,12 +464,17 @@ class DBService:
             result = conn.execute(query)
 
             for row in result:
-                data = {}
-
-                for column in columns:
-                    full_column_name = column.table.name + '.' + column.name
-                    column_label = column.table.name + '_' + column.name
-                    data[full_column_name] = row[column_label]
+                if format_as_list:
+                    data = []
+                    for column in columns:
+                        column_label = column.table.name + '_' + column.name
+                        data.append(row[column_label])
+                else:
+                    data = {}
+                    for column in columns:
+                        full_column_name = column.table.name + '.' + column.name
+                        column_label = column.table.name + '_' + column.name
+                        data[full_column_name] = row[column_label]
 
                 rows.append(data)
 

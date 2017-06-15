@@ -230,7 +230,8 @@ class DBController:
             return jsonify(success=False, error=str(e)), 404
 
         try:
-            rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join, group_by)
+            rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join, group_by, 
+                format_as_list=request.args.get('_list', '').lower() in ['t', 'true', '1'])
         except JoinError as e:
             return jsonify(error=str(e)), 400
 
