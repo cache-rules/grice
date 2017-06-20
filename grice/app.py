@@ -5,7 +5,6 @@ from grice.db_service import DBService
 from grice.column_encoder import ColumnEncoder
 from grice.errors import ConfigurationError
 from flask import Flask, send_from_directory, render_template
-from waitress import serve
 
 
 def _print_start_screen():
@@ -71,5 +70,6 @@ class App:
         self.flask_app.add_url_rule('/assets/<path:path>', 'assets', static_assets)
 
     def serve(self):
+        from waitress import serve
         self.flask_app.logger.info('Starting server...')
         serve(self.flask_app, host=self.host, port=self.port, threads=self.threads)
