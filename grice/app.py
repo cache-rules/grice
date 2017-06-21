@@ -5,7 +5,6 @@ from grice.db_service import DBService
 from grice.column_encoder import ColumnEncoder
 from grice.errors import ConfigurationError
 from flask import Flask, send_from_directory, render_template
-from waitress import serve
 
 
 def _print_start_screen():
@@ -38,18 +37,18 @@ def index():
 
 
 class App:
-    def __init__(self, config_path):
+    def __init__(self, config_path='./config.ini', use_waitress=True):
         _print_start_screen()
         config = configparser.ConfigParser()
         config.read(config_path)
-        self._init_flask_app(config['server'])
+        self._init_setup(config['server'])
+        if use_waitress:
+            self._init_waitress(config['server'])
+        self._init_flask_app()
         self._db_service = DBService(config['database'])
         self._db_controller = DBController(self.flask_app, self._db_service)
 
-    def _init_flask_app(self, server_config):
-        self.host = server_config.get('host', '0.0.0.0')
-        self.port = server_config.getint('port', 8080)
-        self.threads = server_config.getint('threads', 8)
+    def _init_setup(self, server_config):
         self.debug = server_config.getboolean('debug', False)
 
         try:
@@ -57,6 +56,12 @@ class App:
         except KeyError:
             raise ConfigurationError('Entry "secret" required in section "server"')
 
+    def _init_waitress(self, server_config):
+        self.host = server_config.get('host', '0.0.0.0')
+        self.port = server_config.getint('port', 8080)
+        self.threads = server_config.getint('threads', 8)
+
+    def _init_flask_app(self):
         self.flask_app = Flask('grice')
         self.flask_app.debug = self.debug
         self.flask_app.secret_key = self.secret
@@ -65,5 +70,6 @@ class App:
         self.flask_app.add_url_rule('/assets/<path:path>', 'assets', static_assets)
 
     def serve(self):
+        from waitress import serve
         self.flask_app.logger.info('Starting server...')
         serve(self.flask_app, host=self.host, port=self.port, threads=self.threads)

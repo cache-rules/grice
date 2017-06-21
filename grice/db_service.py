@@ -1,11 +1,13 @@
 from collections import namedtuple
+import urllib
 
-from sqlalchemy.sql import Select
-
-from grice.errors import ConfigurationError, NotFoundError, JoinError
 from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_, asc, desc, and_
 from sqlalchemy import engine
+from sqlalchemy.sql import Select
 from sqlalchemy.engine import reflection
+
+from grice.errors import ConfigurationError, NotFoundError, JoinError
+
 
 DEFAULT_PAGE = 0
 DEFAULT_PER_PAGE = 50
@@ -24,6 +26,7 @@ def init_database(db_config):
     :param db_config:
     :return: SqlAlchemy engine object.
     """
+    driver = db_config.get('driver', 'postgresql')
     try:
         db_args = {
             'username': db_config['username'],
@@ -32,11 +35,13 @@ def init_database(db_config):
             'port': db_config['port'],
             'database': db_config['database']
         }
+        if 'query' in db_config:
+            db_args['query'] = dict(urllib.parse.parse_qsl(db_config['query'], keep_blank_values=True))
     except KeyError:
         msg = '"username", "password", "host", "port", and "database" are required fields of database config'
         raise ConfigurationError(msg)
 
-    eng_url = engine.url.URL('postgresql', **db_args)
+    eng_url = engine.url.URL(driver, **db_args)
 
     return create_engine(eng_url)
 
@@ -325,6 +330,26 @@ def apply_column_sorts(query, table: Table, join_table: Table, sorts: dict):
 
     return query
 
+def apply_group_by(query, table: Table, join_table: Table, group_by: list):
+    """
+    Adds sorts to a query object.
+
+    :param query: A SQLAlchemy select object.
+    :param table: The Table we are joining from.
+    :param join_table: The Table we are joining to.
+    :param sorts: List of ColumnSort objects.
+    :return: A SQLAlchemy select object modified to with sorts.
+    """
+    for group in group_by:
+        column = table.columns.get(group, None)
+        if join_table is not None and not column:
+            column = join_table.columns.get(group, None)
+
+        if column is not None:
+            query = query.group_by(column)
+
+    return query
+
 
 def apply_join(query: Select, table: Table, join_table: Table, join: TableJoin):
     """
@@ -396,7 +421,7 @@ class DBService:
         return table_to_dict(table)
 
     def query_table(self, table_name, column_names: list=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
-                    filters: dict=None, sorts: dict=None, join: TableJoin=None):
+                    filters: dict=None, sorts: dict=None, join: TableJoin=None, group_by: list=None, format_as_list: bool=False):
         table = self.meta.tables.get(table_name, None)
         join_table = None
 
@@ -430,16 +455,24 @@ class DBService:
         if join is not None:
             query = apply_join(query, table, join_table, join)
 
+        if group_by is not None:
+            query = apply_group_by(query, table, join_table, group_by)
+
         with self.db.connect() as conn:
             result = conn.execute(query)
 
             for row in result:
-                data = {}
-
-                for column in columns:
-                    full_column_name = column.table.name + '.' + column.name
-                    column_label = column.table.name + '_' + column.name
-                    data[full_column_name] = row[column_label]
+                if format_as_list:
+                    data = []
+                    for column in columns:
+                        column_label = column.table.name + '_' + column.name
+                        data.append(row[column_label])
+                else:
+                    data = {}
+                    for column in columns:
+                        full_column_name = column.table.name + '.' + column.name
+                        column_label = column.table.name + '_' + column.name
+                        data[full_column_name] = row[column_label]
 
                 rows.append(data)
 
