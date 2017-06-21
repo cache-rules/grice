@@ -160,18 +160,16 @@ def parse_join(join_str, outer_join: bool):
 
 def parse_col_names(column_names):
     """
-    This method takes a string of comma-seperated column names and returns a list of column names.
+    This method takes a string of comma-seperated column names and returns a list of unique
+    column names, preserving order.
 
     :param column_names: string
     :return: column_names: list
     """
     if column_names:
-        columns_dict = OrderedDict()
-
-        for column_name in column_names.split(','):
-            columns_dict[column_name.strip()] = True
-
-        column_names = list(columns_dict.keys())
+        clean_cols = (column_name.strip() for column_name in column_names.split(','))
+        unique_ordered = OrderedDict.fromkeys(clean_cols)
+        return list(unique_ordered)
 
     return column_names
 
@@ -223,6 +221,7 @@ class DBController:
 
     def query_api(self, name):
         column_names, page, per_page, filters, sorts, join, group_by = parse_query_args(request.args)
+        format_as_list = request.args.get('_list', '').lower() in ['t', 'true', '1']
 
         try:
             table_info = self.db_service.get_table(name)
@@ -230,8 +229,8 @@ class DBController:
             return jsonify(success=False, error=str(e)), 404
 
         try:
-            rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join, group_by, 
-                format_as_list=request.args.get('_list', '').lower() in ['t', 'true', '1'])
+            rows, columns = self.db_service.query_table(name, column_names, page, per_page, filters, sorts, join, group_by,
+                                                        format_as_list=format_as_list)
         except JoinError as e:
             return jsonify(error=str(e)), 400
 
