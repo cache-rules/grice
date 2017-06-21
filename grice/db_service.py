@@ -1,23 +1,25 @@
+import logging
 from collections import namedtuple
 import urllib
 
-from sqlalchemy import create_engine, MetaData, Column, Table, select, not_, or_, asc, desc, and_
+from sqlalchemy import create_engine, MetaData, Column, Table, select, asc, desc, and_
 from sqlalchemy import engine
 from sqlalchemy.sql import Select
+from sqlalchemy.sql.functions import Function
 from sqlalchemy.engine import reflection
-
+from grice.complex_filter import ComplexFilter, get_column
 from grice.errors import ConfigurationError, NotFoundError, JoinError
 
+log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 DEFAULT_PAGE = 0
 DEFAULT_PER_PAGE = 50
-LIST_FILTERS = ['in', 'not_in', 'bt', 'nbt']
-FILTER_TYPES = ['lt', 'lte', 'eq', 'neq', 'gt', 'gte'] + LIST_FILTERS
 SORT_DIRECTIONS = ['asc', 'desc']
+SUPPORTED_FUNCS = ['avg', 'count', 'min', 'max', 'sum']
 ColumnSort = namedtuple('ColumnSort', ['table_name', 'column_name', 'direction'])
 ColumnPair = namedtuple('ColumnPair', ['from_column', 'to_column'])
 TableJoin = namedtuple('TableJoin', ['table_name', 'column_pairs', 'outer_join'])
-
+QueryArguments = namedtuple('QueryArguments', ['column_names', 'page', 'per_page', 'filters', 'sorts', 'join', 'group_by', 'format_as_list'])
 
 def init_database(db_config):
     """
@@ -45,6 +47,14 @@ def init_database(db_config):
 
     return create_engine(eng_url)
 
+
+def function_to_dict(func: Function):
+    data = {
+        'name': str(func),
+        'primary_key': func.primary_key,
+        'table': '<Function {}>'.format(func.name),
+    }
+    return data
 
 def column_to_dict(column: Column):
     """
@@ -85,34 +95,6 @@ def table_to_dict(table: Table):
     }
 
 
-def get_column(column_name, table: Table, join_table: Table):
-    """
-    Converts a column name to a column object.
-
-    :param column_name: str, column_name strings, can be None.
-    :param table: The main table.
-    :param join_table: The table we are joining on, can be None.
-    :return: SqlAlchemy column object.
-    """
-    table_name = None
-
-    try:
-        column_name, table_name = column_name.split('.')
-    except ValueError:
-        # This is fine, this means that this isn't a fully qualified column name.
-        pass
-
-    if table_name:
-        if table_name == table.name:
-            return table.columns.get(column_name, None)
-        elif join_table is not None and table_name == join_table.name:
-            return join_table.columns.get(column_name, None)
-        else:
-            return None
-
-    return table.columns.get(column_name, None)
-
-
 def names_to_columns(column_names, table: Table, join_table: Table):
     """
     Converts column names to columns. If column_names is None then we assume all columns are wanted.
@@ -122,7 +104,7 @@ def names_to_columns(column_names, table: Table, join_table: Table):
     :param join_table: The table we are joining on, can be None.
     :return: list of SqlAlchemy column objects.
     """
-    if column_names is None:
+    if not column_names:
         columns = table.columns.values()
 
         if join_table is not None:
@@ -133,7 +115,7 @@ def names_to_columns(column_names, table: Table, join_table: Table):
     columns = []
 
     for column_name in column_names:
-        column = get_column(column_name, table, join_table)
+        column = get_column(column_name, [table, join_table])
 
         if column is not None:
             columns.append(column)
@@ -141,133 +123,7 @@ def names_to_columns(column_names, table: Table, join_table: Table):
     return columns
 
 
-def convert_url_value(url_value: str, column: Column):
-    """
-    Converts a given string value to the given Column's type.
-
-    :param url_value: a string
-    :param column: a sqlalchemy Column object
-    :return: value converted to type in column object.
-    """
-    if column.type.python_type == bool:
-        return url_value.lower() == 'true'
-    else:
-        return column.type.python_type(url_value)
-
-
-class ColumnFilter:
-    def __init__(self, column_name, filter_type, value=None, url_value=None, column: Column=None):
-        """
-        ColumnFilter will be used to apply filters to a column when using the table query API. They are parsed from the
-        url via db_controller.parse_filters.
-
-        :param column_name: The name of the column to filter
-        :param filter_type: The type of filter to apply, must one of FILTER_TYPES.
-        :param value: The value to apply with the filter type converted to the appropriate type via the column object.
-        :param url_value: The value that came from the URL
-        :param column: The SQLAlchemy Column object from the table.
-        :return:
-        """
-        if filter_type not in FILTER_TYPES:
-            raise ValueError('Invalid filter type "{}", valid types: {}'.format(filter_type, FILTER_TYPES))
-
-        try:
-            self.table_name, self.column_name = column_name.split('.')
-        except ValueError:
-            self.table_name = None
-            self.column_name = column_name
-
-        self.filter_type = filter_type
-        self.value = value
-        self.url_value = url_value
-        self._column = column
-
-        if self._column is not None and self.url_value is not None:
-            self.value = convert_url_value(url_value, self.column)
-
-    @property
-    def column(self):
-        return self._column
-
-    @column.setter
-    def column(self, column):
-        try:
-            if self.url_value is not None:
-                if self.filter_type in LIST_FILTERS:
-                    values = []
-
-                    for value in self.url_value.split(';'):
-                        values.append(convert_url_value(value, column))
-
-                    self.value = values
-                else:
-                    self.value = convert_url_value(self.url_value, column)
-        except (ValueError, TypeError):
-            raise(ValueError('Invalid value "{}" for type "{}"'.format(self.url_value, column.type.python_type)))
-
-        self._column = column
-
-
-def get_filter_expression(column: Column, column_filter: ColumnFilter):
-    """
-    Given a Column and ColumnFilter return an expression to use as a filter.
-    :param column: sqlalchemy Column object
-    :param column_filter: ColumnFilter object
-    :return: sqlalchemy expression object
-    """
-    try:
-        column_filter.column = column
-    except ValueError:
-        # Ignore bad filters.
-        return None
-
-    value = column_filter.value
-    filter_type = column_filter.filter_type
-
-    if filter_type == 'lt':
-        return column < value
-    elif filter_type == 'lte':
-        return column <= value
-    elif filter_type == 'eq':
-        return column == value
-    elif filter_type == 'neq':
-        return column != value
-    elif filter_type == 'gt':
-        return column > value
-    elif filter_type == 'gte':
-        return column >= value
-    elif filter_type == 'in':
-        return column.in_(value)
-    elif filter_type == 'not_in':
-        return not_(column.in_(value))
-    elif filter_type == 'bt':
-        return column.between(*value)
-    elif filter_type == 'nbt':
-        return not_(column.between(*value))
-
-    return None
-
-
-def get_filter_expressions(column, filter_list: list):
-    """
-    Given a Column and a list of ColumnFilters return a filter expression.
-
-    :param column: sqlalchemy Column
-    :param filter_list: a list of ColumnFilter objects
-    :return: list of sqlalchemy expression objects
-    """
-    expressions = []
-
-    for column_filter in filter_list:
-        expr = get_filter_expression(column, column_filter)
-
-        if expr is not None:
-            expressions.append(expr)
-
-    return expressions
-
-
-def apply_column_filters(query, table: Table, join_table: Table, filters: dict):
+def apply_column_filters(query, table: Table, join_table: Table, filters: ComplexFilter):
     """
     Apply the ColumnFilters from the filters object to the query.
 
@@ -285,22 +141,9 @@ def apply_column_filters(query, table: Table, join_table: Table, filters: dict):
     :return: A SQLAlchemy select object with filters applied.
     """
 
-    for column_name, filter_list in filters.items():
-        column = get_column(column_name, table, join_table)
-
-        if column is not None:
-            filter_expressions = get_filter_expressions(column, filter_list)
-            number_of_filters = len(filter_expressions)
-
-            if number_of_filters == 0:
-                # No valid filters for this column, so just continue.
-                continue
-            if number_of_filters == 1:
-                # If we only have one filter then just put it in a where clause.
-                query = query.where(filter_expressions[0])
-            else:
-                # If we have more than one filter then OR all filters
-                query = query.where(or_(filter_expressions))
+    expression = filters.get_expression([table, join_table])
+    if expression is not None:
+        query = query.where(expression)
 
     return query
 
@@ -420,63 +263,76 @@ class DBService:
 
         return table_to_dict(table)
 
-    def query_table(self, table_name, column_names: list=None, page: int=DEFAULT_PAGE, per_page: int=DEFAULT_PER_PAGE,
-                    filters: dict=None, sorts: dict=None, join: TableJoin=None, group_by: list=None, format_as_list: bool=False):
+    def query_table(self, table_name: str, quargs: QueryArguments):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+
         table = self.meta.tables.get(table_name, None)
         join_table = None
 
-        if join is not None:
-            join_table = self.meta.tables.get(join.table_name, None)
+        if quargs.join is not None:
+            join_table = self.meta.tables.get(quargs.join.table_name, None)
 
         rows = []
 
         if table is None:
-            raise NotFoundError('Table "{}" does exist'.format(table_name))
+            raise NotFoundError('Table "{}" does exist'.format(quargs.table_name))
 
-        if join is not None and join_table is None:
-            raise JoinError('Invalid join. Table with name "{}" does not exist.'.format(join.table_name))
+        if quargs.join is not None and join_table is None:
+            raise JoinError('Invalid join. Table with name "{}" does not exist.'.format(quargs.join.table_name))
 
-        columns = names_to_columns(column_names, table, join_table)
+        columns = names_to_columns(quargs.column_names, table, join_table)
 
         if len(columns) == 0:
             return [], []
 
         query = select(columns).apply_labels()
 
-        if per_page > -1:
-            query = query.limit(per_page).offset(page * per_page)
+        if quargs.per_page > -1:
+            query = query.limit(quargs.per_page).offset(quargs.page * quargs.per_page)
 
-        if filters is not None:
-            query = apply_column_filters(query, table, join_table, filters)
+        if quargs.filters is not None:
+            query = apply_column_filters(query, table, join_table, quargs.filters)
 
-        if sorts is not None:
-            query = apply_column_sorts(query, table, join_table, sorts)
+        if quargs.sorts is not None:
+            query = apply_column_sorts(query, table, join_table, quargs.sorts)
 
-        if join is not None:
-            query = apply_join(query, table, join_table, join)
+        if quargs.join is not None:
+            query = apply_join(query, table, join_table, quargs.join)
 
-        if group_by is not None:
-            query = apply_group_by(query, table, join_table, group_by)
+        if quargs.group_by is not None:
+            query = apply_group_by(query, table, join_table, quargs.group_by)
 
         with self.db.connect() as conn:
+            log.debug("Query %s", query)
             result = conn.execute(query)
 
             for row in result:
-                if format_as_list:
+                count_of_map = {}
+                if quargs.format_as_list:
                     data = []
                     for column in columns:
-                        column_label = column.table.name + '_' + column.name
+                        if isinstance(column, Function):
+                            counter = count_of_map.get(column.name, 0) + 1
+                            count_of_map[column.name] = counter
+                            column_label = column.name + '_' + str(counter)
+                        else:
+                            column_label = column.table.name + '_' + column.name
                         data.append(row[column_label])
                 else:
                     data = {}
                     for column in columns:
-                        full_column_name = column.table.name + '.' + column.name
-                        column_label = column.table.name + '_' + column.name
+                        if isinstance(column, Function):
+                            counter = count_of_map.get(column.name, 0) + 1
+                            count_of_map[column.name] = counter
+                            full_column_name = column.name + '_' + str(counter)
+                            column_label = column.name + '_' + str(counter)
+                        else:
+                            full_column_name = column.table.name + '.' + column.name
+                            column_label = column.table.name + '_' + column.name
                         data[full_column_name] = row[column_label]
 
                 rows.append(data)
 
-        column_data = [column_to_dict(column) for column in columns]
+        column_data = [column_to_dict(column) if isinstance(column, Column) else function_to_dict(column) for column in columns]
 
         return rows, column_data
 
@@ -485,4 +341,3 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read('../config.ini')
     s = DBService(config['database'])
-

@@ -1,0 +1,18 @@
+{
+    "perPage": 10,
+    "filter": {
+        "AND": [
+            ["start_time", "gt", 1497985901057],
+            {
+                "OR": [
+                    ["test_id", "neq", 1235],
+                    ["test_id", "gt", 1343]
+                ]
+            }
+        ]
+    },
+    "sort": "count",
+    "columns": ["test_id", "result", "count:", "avg:total_time"],
+    "group_by": ["test_id", "result"],
+    "_list": true
+}
