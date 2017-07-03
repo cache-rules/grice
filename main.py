@@ -1,7 +1,13 @@
+import logging
+import sys
+import os
 import argparse
-
 from grice.app import App
 
+logging.basicConfig(
+    stream=sys.stdout,
+    format='%(asctime)s:%(levelname)s: %(message)s',
+    level=os.environ.get('DEBUG_LEVEL') or logging.INFO)
 
 def main():
     """
