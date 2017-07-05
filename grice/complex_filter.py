@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)  # pylint: disable=C0103
 LIST_FILTERS = ['in', 'not_in', 'bt', 'nbt']
 FILTER_TYPES = ['lt', 'lte', 'eq', 'neq', 'gt', 'gte'] + LIST_FILTERS
 
-ColumnFunction = namedtuple('ColumnFunction', ['table_name', 'column_name', 'func_name'])
+ColumnFunction = namedtuple('ColumnFunction', ['table_name', 'column_name', 'func_name', 'operator_name', 'operator_value'])
 
 
 def _get_column(table_name: str, column_name: str, tables: List[Table]) -> Column:
@@ -33,11 +33,14 @@ def get_column(column_name: str, tables: List[Table]):
     if isinstance(column_name, ColumnFunction):
         func_name = column_name.func_name
         table_name = column_name.table_name
+        operator_name = column_name.operator_name
+        operator_value = column_name.operator_value
         column_name = column_name.column_name
 
     else:
         func_name = None
         table_name = None
+        operator_name = None
 
         try:
             column_name, table_name = column_name.split('.')
@@ -46,8 +49,13 @@ def get_column(column_name: str, tables: List[Table]):
             pass
 
     column = _get_column(table_name, column_name, tables)
+
+    if operator_name:
+        column = column.op(operator_name)(operator_value)
+
     if func_name:
         return getattr(sql_func, func_name)(column)
+
     return column
 
 def parse_filter(filter_string: str):
